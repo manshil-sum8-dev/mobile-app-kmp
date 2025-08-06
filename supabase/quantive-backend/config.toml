@@ -1,0 +1,7 @@
+project_id = "quantive-local-3"
+[api]
+port = 54324
+[db]
+port = 54331
+[studio]
+port = 54330
