@@ -12,6 +12,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -79,6 +80,20 @@ class SupabaseClient(
         return resp.body()
     }
 
+    internal suspend inline fun <reified T, reified B> patch(
+        path: String,
+        body: B,
+        params: Map<String, String?> = emptyMap(),
+    ): T {
+        val token = accessTokenProvider()
+        val resp = client.patch(url(path)) {
+            supabaseHeaders(token)
+            params.forEach { (k, v) -> if (!v.isNullOrBlank()) parameter(k, v) }
+            setBody(body)
+        }
+        return resp.body()
+    }
+
     internal suspend inline fun <reified T> delete(
         path: String,
         params: Map<String, String?> = emptyMap(),
@@ -89,5 +104,42 @@ class SupabaseClient(
             params.forEach { (k, v) -> if (!v.isNullOrBlank()) parameter(k, v) }
         }
         return resp.body()
+    }
+
+    /**
+     * Execute RPC function call
+     */
+    internal suspend inline fun <reified T> rpc(
+        functionName: String,
+        params: Map<String, Any> = emptyMap(),
+    ): T {
+        val token = accessTokenProvider()
+        val resp = client.post(url("rest/v1/rpc/$functionName")) {
+            supabaseHeaders(token)
+            setBody(params)
+        }
+        return resp.body()
+    }
+
+    /**
+     * Upload file to Supabase Storage
+     */
+    internal suspend fun uploadFile(
+        bucket: String,
+        path: String,
+        data: ByteArray,
+        mimeType: String,
+    ): String {
+        val token = accessTokenProvider()
+        val storageUrl = url("storage/v1/object/$bucket/$path")
+
+        client.post(storageUrl) {
+            header("apikey", Env.supabaseAnonKey)
+            if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
+            contentType(ContentType.parse(mimeType))
+            setBody(data)
+        }
+
+        return path
     }
 }

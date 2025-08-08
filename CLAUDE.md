@@ -38,6 +38,10 @@ This is a Kotlin Multiplatform mobile application (Quantive) targeting Android a
 ### Test Commands
 - `./gradlew test` - Run tests (basic Kotlin test support available)
 
+### Code Quality Commands
+- `make ktlint-check` - Check code formatting and style
+- `make ktlint-format` - Auto-format code to fix style issues
+
 ## Architecture
 
 ### **⚠️ CRITICAL: Enterprise Development Standards**
@@ -194,3 +198,49 @@ This project follows **Enterprise-Grade KMP Development Standards** with strict 
 5. **Complete API implementations** - All endpoints must work with Supabase backend
 
 **All development must pause until these critical violations are resolved.**
+
+## 🚀 **MANDATORY VALIDATION RULE**
+
+### **⚠️ CRITICAL: Code Change Validation Protocol**
+
+**EVERY code change, whether feature development, bug fixes, or improvements, MUST be validated using the relevant Makefile commands before completion.**
+
+#### **Required Validation Steps:**
+
+1. **After ANY code change:**
+   ```bash
+   make android-build    # Validate Android compatibility
+   make ios-framework    # Validate iOS compatibility  
+   make ktlint-check     # Validate code style compliance
+   ```
+
+2. **For backend changes:**
+   ```bash
+   make supa-migrate     # Apply database migrations
+   make supa-status      # Verify backend services
+   ```
+
+3. **For feature development:**
+   ```bash
+   make clean            # Clean artifacts first
+   # Run above validation commands
+   # Test feature functionality
+   ```
+
+#### **Validation Requirements:**
+- ✅ **All builds must pass** (Android + iOS)
+- ✅ **All code style checks must pass** (ktlint compliant)
+- ✅ **No compilation errors or warnings** 
+- ✅ **Backend services must be operational** (if applicable)
+
+#### **Failure Protocol:**
+- ❌ **If ANY validation fails**: Fix immediately before proceeding
+- ❌ **No commits with failing builds**
+- ❌ **No feature completion without full validation**
+
+#### **Claude Code Enforcement:**
+- Claude MUST run these validation commands after every code modification
+- Claude MUST report validation results to the user
+- Claude MUST fix any validation failures before declaring work complete
+
+**This rule ensures code quality, cross-platform compatibility, and prevents broken builds from entering the codebase.**

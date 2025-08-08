@@ -229,6 +229,8 @@ object AppServices {
         BackendContactRepository(contactApi, contactCache)
     }
 
+    // Onboarding services (temporarily disabled)
+
     // Business Profile services (legacy - will be migrated)
     private val businessProfileLocal by lazy { BusinessProfileLocal() }
     private val businessProfileRemote by lazy { BusinessProfileRemote(supabase, ownerIdProvider) }

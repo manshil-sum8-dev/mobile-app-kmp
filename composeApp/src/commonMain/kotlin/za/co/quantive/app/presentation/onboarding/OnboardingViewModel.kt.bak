@@ -1,0 +1,443 @@
+package za.co.quantive.app.presentation.onboarding
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import za.co.quantive.app.data.remote.api.OnboardingApi
+import za.co.quantive.app.domain.profile.BusinessAddress
+import za.co.quantive.app.domain.profile.BusinessProfile
+import za.co.quantive.app.domain.profile.BusinessType
+import za.co.quantive.app.domain.profile.Country
+import za.co.quantive.app.domain.profile.EmployeeCount
+import za.co.quantive.app.domain.profile.Province
+
+/**
+ * Unified ViewModel for the redesigned onboarding flow
+ * Manages state across all onboarding screens with auto-save functionality
+ */
+class OnboardingViewModel(
+    private val onboardingApi: OnboardingApi
+) {
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    
+    private val _uiState = MutableStateFlow(OnboardingUiState())
+    val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
+    
+    private val _currentStep = MutableStateFlow(OnboardingStep.Splash)
+    val currentStep: StateFlow<OnboardingStep> = _currentStep.asStateFlow()
+    
+    private val _countries = MutableStateFlow<List<Country>>(emptyList())
+    val countries: StateFlow<List<Country>> = _countries.asStateFlow()
+    
+    private val _provinces = MutableStateFlow<List<Province>>(emptyList())
+    val provinces: StateFlow<List<Province>> = _provinces.asStateFlow()
+    
+    init {
+        loadCountries()
+    }
+    
+    // Navigation Methods
+    
+    fun nextStep() {
+        val next = when (_currentStep.value) {
+            OnboardingStep.Splash -> OnboardingStep.ValueProposition1
+            OnboardingStep.ValueProposition1 -> OnboardingStep.ValueProposition2
+            OnboardingStep.ValueProposition2 -> OnboardingStep.ValueProposition3
+            OnboardingStep.ValueProposition3 -> OnboardingStep.ValueProposition4
+            OnboardingStep.ValueProposition4 -> OnboardingStep.UserTypeSelection
+            OnboardingStep.UserTypeSelection -> OnboardingStep.BusinessInfo
+            OnboardingStep.BusinessInfo -> OnboardingStep.LocationInfo
+            OnboardingStep.LocationInfo -> OnboardingStep.Complete
+            OnboardingStep.Complete -> return // Already at the end
+        }
+        _currentStep.value = next
+    }
+    
+    fun previousStep() {
+        val previous = when (_currentStep.value) {
+            OnboardingStep.Splash -> return // Can't go back from splash
+            OnboardingStep.ValueProposition1 -> OnboardingStep.Splash
+            OnboardingStep.ValueProposition2 -> OnboardingStep.ValueProposition1
+            OnboardingStep.ValueProposition3 -> OnboardingStep.ValueProposition2
+            OnboardingStep.ValueProposition4 -> OnboardingStep.ValueProposition3
+            OnboardingStep.UserTypeSelection -> OnboardingStep.ValueProposition4
+            OnboardingStep.BusinessInfo -> OnboardingStep.UserTypeSelection
+            OnboardingStep.LocationInfo -> OnboardingStep.BusinessInfo
+            OnboardingStep.Complete -> OnboardingStep.LocationInfo
+        }
+        _currentStep.value = previous
+    }
+    
+    fun jumpToStep(step: OnboardingStep) {
+        _currentStep.value = step
+    }
+    
+    // Business Type Selection
+    
+    fun selectBusinessType(type: BusinessType) {
+        updateProfile { it.copy(business_type = type) }
+        autoSaveProfile()
+    }
+    
+    // Business Info Methods
+    
+    fun updateBusinessName(name: String) {
+        updateProfile { it.copy(name = name) }
+        clearFieldError("name")
+        autoSaveProfile()
+    }
+    
+    fun updateCompanyRegistrationNumber(regNumber: String) {
+        updateProfile { it.copy(company_registration_number = regNumber) }
+        clearFieldError("company_registration_number")
+        autoSaveProfile()
+    }
+    
+    fun updateWebsite(website: String) {
+        updateProfile { it.copy(website = website) }
+        clearFieldError("website")
+        autoSaveProfile()
+    }
+    
+    fun updateIndustry(industry: String) {
+        updateProfile { it.copy(industry = industry) }
+        clearFieldError("industry")
+        autoSaveProfile()
+    }
+    
+    fun updateEmployeeCount(count: EmployeeCount) {
+        updateProfile { it.copy(employee_count = count) }
+        autoSaveProfile()
+    }
+    
+    fun updatePhone(phone: String) {
+        updateProfile { it.copy(phone = phone) }
+        clearFieldError("phone")
+        autoSaveProfile()
+    }
+    
+    fun updateDescription(description: String) {
+        updateProfile { it.copy(description = description) }
+        autoSaveProfile()
+    }
+    
+    // Location Info Methods
+    
+    fun selectCountry(country: Country) {
+        updateProfile { it.copy(country_id = country.id) }
+        // Reset province when country changes
+        updateProfile { it.copy(province_id = null) }
+        loadProvinces(country.id)
+        autoSaveProfile()
+    }
+    
+    fun selectProvince(province: Province) {
+        updateProfile { it.copy(province_id = province.id) }
+        autoSaveProfile()
+    }
+    
+    fun updateBusinessAddress(
+        street: String? = null,
+        city: String? = null,
+        state: String? = null,
+        postalCode: String? = null,
+        country: String? = null
+    ) {
+        val currentAddress = _uiState.value.profile.business_address ?: BusinessAddress()
+        val newAddress = currentAddress.copy(
+            street = street ?: currentAddress.street,
+            city = city ?: currentAddress.city,
+            state = state ?: currentAddress.state,
+            postal_code = postalCode ?: currentAddress.postal_code,
+            country = country ?: currentAddress.country
+        )
+        updateProfile { it.copy(business_address = newAddress) }
+        autoSaveProfile()
+    }
+    
+    // Logo Upload
+    
+    fun uploadBusinessLogo(logoData: ByteArray, mimeType: String) {
+        scope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isUploadingLogo = true, logoError = null)
+                
+                val profileId = _uiState.value.profile.id ?: throw IllegalStateException("No profile ID")
+                val logoPath = onboardingApi.uploadBusinessLogo(profileId, logoData, mimeType)
+                
+                updateProfile { it.copy(logo_path = logoPath) }
+                _uiState.value = _uiState.value.copy(
+                    isUploadingLogo = false,
+                    logoUploadSuccess = true
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isUploadingLogo = false,
+                    logoError = e.message ?: "Failed to upload logo"
+                )
+            }
+        }
+    }
+    
+    // Form Validation
+    
+    fun validateCurrentStep(): Boolean {
+        return when (_currentStep.value) {
+            OnboardingStep.UserTypeSelection -> validateUserTypeSelection()
+            OnboardingStep.BusinessInfo -> validateBusinessInfo()
+            OnboardingStep.LocationInfo -> validateLocationInfo()
+            else -> true // Other steps don't need validation
+        }
+    }
+    
+    private fun validateUserTypeSelection(): Boolean {
+        val profile = _uiState.value.profile
+        return if (profile.business_type == null) {
+            setFieldError("business_type", "Please select your business type")
+            false
+        } else {
+            true
+        }
+    }
+    
+    private fun validateBusinessInfo(): Boolean {
+        val profile = _uiState.value.profile
+        var isValid = true
+        
+        if (profile.name.isBlank()) {
+            setFieldError("name", "Business name is required")
+            isValid = false
+        }
+        
+        if (profile.business_type == BusinessType.COMPANY && 
+            profile.company_registration_number.isNullOrBlank()) {
+            setFieldError("company_registration_number", "Registration number is required for companies")
+            isValid = false
+        }
+        
+        // Optional validation for website format
+        if (!profile.website.isNullOrBlank() && !isValidUrl(profile.website)) {
+            setFieldError("website", "Please enter a valid website URL")
+            isValid = false
+        }
+        
+        return isValid
+    }
+    
+    private fun validateLocationInfo(): Boolean {
+        val profile = _uiState.value.profile
+        var isValid = true
+        
+        if (profile.country_id.isNullOrBlank()) {
+            setFieldError("country", "Please select your country")
+            isValid = false
+        }
+        
+        if (profile.province_id.isNullOrBlank()) {
+            setFieldError("province", "Please select your province/state")
+            isValid = false
+        }
+        
+        return isValid
+    }
+    
+    private fun isValidUrl(url: String): Boolean {
+        return try {
+            val normalized = if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                "https://$url"
+            } else url
+            normalized.contains(".") && normalized.length > 7
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    // Complete Onboarding
+    
+    fun completeOnboarding() {
+        scope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isCompleting = true, error = null)
+                
+                val profileId = _uiState.value.profile.id ?: throw IllegalStateException("No profile ID")
+                val success = onboardingApi.completeOnboarding(profileId)
+                
+                if (success) {
+                    _uiState.value = _uiState.value.copy(
+                        isCompleting = false,
+                        isComplete = true
+                    )
+                } else {
+                    throw Exception("Failed to complete onboarding")
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isCompleting = false,
+                    error = e.message ?: "Failed to complete onboarding"
+                )
+            }
+        }
+    }
+    
+    // Error Management
+    
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(error = null)
+    }
+    
+    fun clearLogoError() {
+        _uiState.value = _uiState.value.copy(logoError = null)
+    }
+    
+    private fun setFieldError(field: String, message: String) {
+        val currentErrors = _uiState.value.fieldErrors.toMutableMap()
+        currentErrors[field] = message
+        _uiState.value = _uiState.value.copy(fieldErrors = currentErrors)
+    }
+    
+    private fun clearFieldError(field: String) {
+        val currentErrors = _uiState.value.fieldErrors.toMutableMap()
+        currentErrors.remove(field)
+        _uiState.value = _uiState.value.copy(fieldErrors = currentErrors)
+    }
+    
+    // Private Helper Methods
+    
+    private fun loadCountries() {
+        scope.launch {
+            try {
+                _countries.value = onboardingApi.getCountries()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Failed to load countries: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    private fun loadProvinces(countryId: String) {
+        scope.launch {
+            try {
+                _provinces.value = onboardingApi.getProvinces(countryId)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Failed to load provinces: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    private fun updateProfile(update: (BusinessProfile) -> BusinessProfile) {
+        val currentProfile = _uiState.value.profile
+        val updatedProfile = update(currentProfile)
+        _uiState.value = _uiState.value.copy(profile = updatedProfile)
+    }
+    
+    private fun autoSaveProfile() {
+        // Auto-save logic - could be implemented with debouncing
+        // For now, just mark as changed
+        _uiState.value = _uiState.value.copy(hasUnsavedChanges = true)
+    }
+    
+    fun saveProfileChanges() {
+        scope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isSaving = true)
+                
+                val profile = _uiState.value.profile
+                val savedProfile = if (profile.id == null) {
+                    onboardingApi.createBusinessProfile(profile)
+                } else {
+                    onboardingApi.updateBusinessProfile(profile.id, profile)
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    profile = savedProfile,
+                    isSaving = false,
+                    hasUnsavedChanges = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    error = "Failed to save profile: ${e.message}"
+                )
+            }
+        }
+    }
+}
+
+/**
+ * UI State for the onboarding flow
+ */
+data class OnboardingUiState(
+    val profile: BusinessProfile = BusinessProfile(name = ""),
+    val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
+    val isCompleting: Boolean = false,
+    val isComplete: Boolean = false,
+    val isUploadingLogo: Boolean = false,
+    val logoUploadSuccess: Boolean = false,
+    val hasUnsavedChanges: Boolean = false,
+    val error: String? = null,
+    val logoError: String? = null,
+    val fieldErrors: Map<String, String> = emptyMap()
+) {
+    fun getFieldError(field: String): String? = fieldErrors[field]
+    fun hasFieldError(field: String): Boolean = fieldErrors.containsKey(field)
+}
+
+/**
+ * Onboarding flow steps
+ */
+enum class OnboardingStep {
+    Splash,
+    ValueProposition1, // "Invoice in Seconds"
+    ValueProposition2, // "Track Your Cashflow"
+    ValueProposition3, // "Get Paid Faster"
+    ValueProposition4, // "Grow Your Business"
+    UserTypeSelection,
+    BusinessInfo,
+    LocationInfo,
+    Complete
+}
+
+/**
+ * Value proposition data for carousel
+ */
+data class ValueProposition(
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val imageName: String // Asset name for the illustration
+)
+
+val VALUE_PROPOSITIONS = listOf(
+    ValueProposition(
+        title = "Invoice in Seconds",
+        subtitle = "Professional invoices made simple",
+        description = "Create beautiful, professional invoices in seconds with our intuitive templates and automated calculations.",
+        imageName = "invoice_illustration"
+    ),
+    ValueProposition(
+        title = "Track Your Cashflow", 
+        subtitle = "Real-time financial insights",
+        description = "Monitor your business finances with live dashboards, payment tracking, and detailed analytics.",
+        imageName = "cashflow_illustration"
+    ),
+    ValueProposition(
+        title = "Get Paid Faster",
+        subtitle = "Streamlined payment collection",
+        description = "Send automated reminders, accept online payments, and reduce payment delays with smart features.",
+        imageName = "payments_illustration"
+    ),
+    ValueProposition(
+        title = "Grow Your Business",
+        subtitle = "Scale with confidence",
+        description = "Access powerful reporting, client management, and business insights to drive sustainable growth.",
+        imageName = "growth_illustration"
+    )
+)

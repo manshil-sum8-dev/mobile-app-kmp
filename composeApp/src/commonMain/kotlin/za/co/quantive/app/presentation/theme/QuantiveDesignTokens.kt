@@ -2,7 +2,6 @@ package za.co.quantive.app.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -14,73 +13,111 @@ import androidx.compose.ui.unit.sp
 object QuantiveDesignTokens {
 
     /**
-     * Color System - Professional business palette
+     * Custom Material 3 Color System - Premium Teal/Green Business Theme
+     * Based on the user's custom theme with professional brand colors
      */
     object Colors {
-        // Primary Colors - Teal (Professional, trustworthy)
-        val Primary = Color(0xFF00796B) // Teal 700
+        // Light Theme Primary Colors - Professional Teal/Green
+        val Primary = Color(0xFF006B5F) // Custom brand teal
         val OnPrimary = Color(0xFFFFFFFF) // White
-        val PrimaryContainer = Color(0xFFB2DFDB) // Teal 100
-        val OnPrimaryContainer = Color(0xFF004D40) // Teal 900
+        val PrimaryContainer = Color(0xFF9EF2E2) // Light teal container
+        val OnPrimaryContainer = Color(0xFF005047) // Dark teal
 
-        // Secondary Colors - Green (Growth, success)
-        val Secondary = Color(0xFF4CAF50) // Green 500
+        // Secondary Colors - Harmonious teal variations
+        val Secondary = Color(0xFF4A635E) // Muted teal-green
         val OnSecondary = Color(0xFFFFFFFF) // White
-        val SecondaryContainer = Color(0xFFC8E6C9) // Green 100
-        val OnSecondaryContainer = Color(0xFF1B5E20) // Green 900
+        val SecondaryContainer = Color(0xFFCDE8E2) // Very light teal
+        val OnSecondaryContainer = Color(0xFF334B47) // Dark teal-green
 
-        // Tertiary Colors - Blue (Trust, reliability)
-        val Tertiary = Color(0xFF2196F3) // Blue 500
+        // Tertiary Colors - Complementary blue
+        val Tertiary = Color(0xFF456179) // Blue-gray
         val OnTertiary = Color(0xFFFFFFFF) // White
-        val TertiaryContainer = Color(0xFFBBDEFB) // Blue 100
-        val OnTertiaryContainer = Color(0xFF0D47A1) // Blue 900
+        val TertiaryContainer = Color(0xFFCBE6FF) // Light blue
+        val OnTertiaryContainer = Color(0xFF2D4A60) // Dark blue-gray
 
-        // Semantic Colors
-        val Error = Color(0xFFD32F2F) // Red 700
+        // Error Colors
+        val Error = Color(0xFFBA1A1A) // Material 3 error red
         val OnError = Color(0xFFFFFFFF) // White
-        val Warning = Color(0xFFFF9800) // Orange 500
-        val Success = Color(0xFF388E3C) // Green 700
-        val Info = Color(0xFF1976D2) // Blue 700
+        val ErrorContainer = Color(0xFFFFDAD6) // Light red container
+        val OnErrorContainer = Color(0xFF93000A) // Dark red
 
-        // South African Business Context Colors
-        val Currency = Color(0xFF1B5E20) // Dark Green (Rand)
-        val Tax = Color(0xFF3E2723) // Brown (SARS)
-        val VAT = Color(0xFF5D4037) // Brown 700
-        val Invoice = Color(0xFF00695C) // Teal 800
+        // Surface Colors - Clean, professional backgrounds
+        val Background = Color(0xFFF4FBF8) // Very light green background
+        val OnBackground = Color(0xFF171D1B) // Dark text
+        val Surface = Color(0xFFF4FBF8) // Same as background
+        val OnSurface = Color(0xFF171D1B) // Dark text
+        val SurfaceVariant = Color(0xFFDAE5E1) // Light teal-gray
+        val OnSurfaceVariant = Color(0xFF3F4946) // Medium dark text
 
-        // Surface Colors
-        val Surface = Color(0xFFFFFBFE) // Light surface
-        val OnSurface = Color(0xFF1C1B1F) // Dark text
-        val SurfaceVariant = Color(0xFFF3F2F7) // Light variant
-        val OnSurfaceVariant = Color(0xFF46464F) // Medium text
-
-        val Background = Color(0xFFFFFBFE) // Light background
-        val OnBackground = Color(0xFF1C1B1F) // Dark text
+        // Surface Container Hierarchy for proper elevation
+        val SurfaceContainerLowest = Color(0xFFFFFFFF) // Pure white
+        val SurfaceContainerLow = Color(0xFFEFF5F2) // Very light teal
+        val SurfaceContainer = Color(0xFFE9EFEC) // Light teal
+        val SurfaceContainerHigh = Color(0xFFE3EAE7) // Medium light teal
+        val SurfaceContainerHighest = Color(0xFFDDE4E1) // Medium teal
 
         // Outline colors
-        val Outline = Color(0xFF79757F) // Medium outline
-        val OutlineVariant = Color(0xFFCAC4D0) // Light outline
+        val Outline = Color(0xFF6F7976) // Medium teal-gray
+        val OutlineVariant = Color(0xFFBEC9C5) // Light teal-gray
+        val Scrim = Color(0xFF000000) // Black overlay
+
+        // Inverse colors for dark elements on light theme
+        val InverseSurface = Color(0xFF2B3230) // Dark surface
+        val InverseOnSurface = Color(0xFFECF2EF) // Light text on dark
+        val InversePrimary = Color(0xFF83D5C7) // Light teal for dark backgrounds
+
+        // Business Context Colors
+        val Currency = Color(0xFF1B5E20) // Dark green for money
+        val Tax = Color(0xFF3E2723) // Brown for tax/government
+        val VAT = Color(0xFF5D4037) // Brown for VAT
+        val Invoice = Color(0xFF00695C) // Darker teal for invoices
+        val Warning = Color(0xFFFF9800) // Orange for warnings
+        val Success = Color(0xFF388E3C) // Green for success
+        val Info = Color(0xFF1976D2) // Blue for information
 
         // Dark theme colors
         object Dark {
-            val Primary = Color(0xFF4DB6AC) // Teal 300
-            val OnPrimary = Color(0xFF003128) // Very dark teal
-            val PrimaryContainer = Color(0xFF00564F) // Dark teal
-            val OnPrimaryContainer = Color(0xFFB2DFDB) // Light teal
+            val Primary = Color(0xFF83D5C7) // Light teal for dark theme
+            val OnPrimary = Color(0xFF003731) // Very dark teal
+            val PrimaryContainer = Color(0xFF005047) // Medium dark teal
+            val OnPrimaryContainer = Color(0xFF9EF2E2) // Light teal
 
-            val Surface = Color(0xFF141218) // Dark surface
-            val OnSurface = Color(0xFFE6E1E5) // Light text
-            val Background = Color(0xFF141218) // Dark background
-            val OnBackground = Color(0xFFE6E1E5) // Light text
+            val Secondary = Color(0xFFB1CCC6) // Light secondary for dark
+            val OnSecondary = Color(0xFF1C3530) // Dark green
+            val SecondaryContainer = Color(0xFF334B47) // Medium dark green
+            val OnSecondaryContainer = Color(0xFFCDE8E2) // Light teal
+
+            val Tertiary = Color(0xFFACCAE5) // Light blue for dark
+            val OnTertiary = Color(0xFF143349) // Dark blue
+            val TertiaryContainer = Color(0xFF2D4A60) // Medium dark blue
+            val OnTertiaryContainer = Color(0xFFCBE6FF) // Light blue
+
+            val Error = Color(0xFFFFB4AB) // Light red for dark theme
+            val OnError = Color(0xFF690005) // Dark red
+            val ErrorContainer = Color(0xFF93000A) // Medium dark red
+            val OnErrorContainer = Color(0xFFFFDAD6) // Light red
+
+            val Background = Color(0xFF0E1513) // Very dark green background
+            val OnBackground = Color(0xFFDDE4E1) // Light text
+            val Surface = Color(0xFF0E1513) // Same as background
+            val OnSurface = Color(0xFFDDE4E1) // Light text
+
+            // Surface containers for dark theme elevation
+            val SurfaceContainerLowest = Color(0xFF090F0E) // Darkest
+            val SurfaceContainerLow = Color(0xFF171D1B) // Very dark
+            val SurfaceContainer = Color(0xFF1A211F) // Dark
+            val SurfaceContainerHigh = Color(0xFF252B2A) // Medium dark
+            val SurfaceContainerHighest = Color(0xFF303634) // Lightest dark
         }
     }
 
     /**
-     * Typography Scale - Inter font family for professionalism
+     * Typography Scale - Custom fonts with Raleway for display and Poppins for body
+     * Following Material 3 Expressive typography scale
      */
     object Typography {
         val DisplayLarge = TextStyle(
-            fontFamily = FontFamily.Default, // Will be replaced with Inter
+            fontFamily = QuantiveDisplayFontFamily, // Raleway for headers
             fontWeight = FontWeight.W400,
             fontSize = 57.sp,
             lineHeight = 64.sp,
@@ -88,7 +125,7 @@ object QuantiveDesignTokens {
         )
 
         val DisplayMedium = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W400,
             fontSize = 45.sp,
             lineHeight = 52.sp,
@@ -96,7 +133,7 @@ object QuantiveDesignTokens {
         )
 
         val DisplaySmall = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W400,
             fontSize = 36.sp,
             lineHeight = 44.sp,
@@ -104,7 +141,7 @@ object QuantiveDesignTokens {
         )
 
         val HeadlineLarge = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W400,
             fontSize = 32.sp,
             lineHeight = 40.sp,
@@ -112,7 +149,7 @@ object QuantiveDesignTokens {
         )
 
         val HeadlineMedium = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W400,
             fontSize = 28.sp,
             lineHeight = 36.sp,
@@ -120,7 +157,7 @@ object QuantiveDesignTokens {
         )
 
         val HeadlineSmall = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W400,
             fontSize = 24.sp,
             lineHeight = 32.sp,
@@ -128,7 +165,7 @@ object QuantiveDesignTokens {
         )
 
         val TitleLarge = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W500,
             fontSize = 22.sp,
             lineHeight = 28.sp,
@@ -136,7 +173,7 @@ object QuantiveDesignTokens {
         )
 
         val TitleMedium = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W500,
             fontSize = 18.sp,
             lineHeight = 24.sp,
@@ -144,7 +181,7 @@ object QuantiveDesignTokens {
         )
 
         val TitleSmall = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveDisplayFontFamily,
             fontWeight = FontWeight.W500,
             fontSize = 16.sp,
             lineHeight = 20.sp,
@@ -152,7 +189,7 @@ object QuantiveDesignTokens {
         )
 
         val BodyLarge = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveBodyFontFamily, // Poppins for body text
             fontWeight = FontWeight.W400,
             fontSize = 16.sp,
             lineHeight = 24.sp,
@@ -160,7 +197,7 @@ object QuantiveDesignTokens {
         )
 
         val BodyMedium = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveBodyFontFamily,
             fontWeight = FontWeight.W400,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -168,7 +205,7 @@ object QuantiveDesignTokens {
         )
 
         val BodySmall = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveBodyFontFamily,
             fontWeight = FontWeight.W400,
             fontSize = 12.sp,
             lineHeight = 16.sp,
@@ -176,7 +213,7 @@ object QuantiveDesignTokens {
         )
 
         val LabelLarge = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveBodyFontFamily,
             fontWeight = FontWeight.W500,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -184,7 +221,7 @@ object QuantiveDesignTokens {
         )
 
         val LabelMedium = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveBodyFontFamily,
             fontWeight = FontWeight.W500,
             fontSize = 12.sp,
             lineHeight = 16.sp,
@@ -192,7 +229,7 @@ object QuantiveDesignTokens {
         )
 
         val LabelSmall = TextStyle(
-            fontFamily = FontFamily.Default,
+            fontFamily = QuantiveBodyFontFamily,
             fontWeight = FontWeight.W500,
             fontSize = 11.sp,
             lineHeight = 16.sp,

@@ -1,0 +1,240 @@
+package za.co.quantive.app.data.remote.api
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import za.co.quantive.app.data.remote.SupabaseClient
+import za.co.quantive.app.domain.profile.BusinessProfile
+import za.co.quantive.app.domain.profile.Country
+import za.co.quantive.app.domain.profile.Province
+
+/**
+ * Supabase implementation of OnboardingApi
+ */
+class OnboardingApiImpl(
+    private val client: SupabaseClient
+) : OnboardingApi {
+    
+    override suspend fun getCountries(): List<Country> {
+        return client.get<List<CountryResponse>>("rest/v1/countries?select=*&is_active=eq.true&order=display_order")
+            .map { it.toDomain() }
+    }
+    
+    override suspend fun getProvinces(countryId: String): List<Province> {
+        return client.get<List<ProvinceResponse>>("rest/v1/provinces?select=*&country_id=eq.$countryId&is_active=eq.true&order=display_order")
+            .map { it.toDomain() }
+    }
+    
+    override suspend fun createBusinessProfile(profile: BusinessProfile): BusinessProfile {
+        val request = createRequest(profile)
+        val response = client.post<BusinessProfileResponse, CreateBusinessProfileRequest>(
+            path = "rest/v1/business_profile",
+            body = request
+        )
+        return response.toDomain()
+    }
+    
+    override suspend fun updateBusinessProfile(profileId: String, profile: BusinessProfile): BusinessProfile {
+        val request = updateRequest(profile)
+        val response = client.patch<BusinessProfileResponse, UpdateBusinessProfileRequest>(
+            path = "rest/v1/business_profile?id=eq.$profileId",
+            body = request
+        )
+        return response.toDomain()
+    }
+    
+    override suspend fun uploadBusinessLogo(profileId: String, logoData: ByteArray, mimeType: String): String {
+        // Generate unique file path using the helper function we created in SQL
+        val fileExtension = when (mimeType) {
+            "image/png" -> "png"
+            "image/jpeg", "image/jpg" -> "jpg"
+            "image/webp" -> "webp"
+            "image/svg+xml" -> "svg"
+            else -> "png"
+        }
+        
+        // Get the logo path from our SQL function
+        val pathResponse = client.rpc<String>("generate_logo_path", mapOf("file_extension" to fileExtension))
+        
+        // Upload to storage
+        client.uploadFile(
+            bucket = "business-logos",
+            path = pathResponse,
+            data = logoData,
+            mimeType = mimeType
+        )
+        
+        return pathResponse
+    }
+    
+    override suspend fun completeOnboarding(profileId: String): Boolean {
+        // Mark business profile as onboarding completed
+        val updateData = mapOf("updated_at" to "now()")
+        client.patch<Unit, Map<String, String>>(
+            path = "rest/v1/business_profile?id=eq.$profileId",
+            body = updateData
+        )
+        return true
+    }
+    
+    // Helper functions
+    private fun createRequest(profile: BusinessProfile) = CreateBusinessProfileRequest(
+        name = profile.name,
+        business_type = profile.business_type?.name?.lowercase(),
+        company_registration_number = profile.company_registration_number,
+        website = profile.website,
+        industry = profile.industry,
+        employee_count = profile.employee_count?.name?.lowercase(),
+        business_address = profile.business_address?.let { Json.encodeToString(it) },
+        country_id = profile.country_id,
+        province_id = profile.province_id,
+        phone = profile.phone,
+        description = profile.description
+    )
+    
+    private fun updateRequest(profile: BusinessProfile) = UpdateBusinessProfileRequest(
+        name = profile.name,
+        business_type = profile.business_type?.name?.lowercase(),
+        company_registration_number = profile.company_registration_number,
+        website = profile.website,
+        industry = profile.industry,
+        employee_count = profile.employee_count?.name?.lowercase(),
+        business_address = profile.business_address?.let { Json.encodeToString(it) },
+        country_id = profile.country_id,
+        province_id = profile.province_id,
+        phone = profile.phone,
+        description = profile.description
+    )
+}
+
+// API Response Models
+@Serializable
+private data class CountryResponse(
+    val id: String,
+    val iso_code: String,
+    val iso3_code: String,
+    val name: String,
+    val currency_code: String?,
+    val phone_prefix: String?,
+    val continent: String,
+    val region: String?,
+    val subregion: String?
+) {
+    fun toDomain() = Country(
+        id = id,
+        iso_code = iso_code,
+        iso3_code = iso3_code,
+        name = name,
+        currency_code = currency_code,
+        phone_prefix = phone_prefix,
+        continent = continent,
+        region = region,
+        subregion = subregion
+    )
+}
+
+@Serializable
+private data class ProvinceResponse(
+    val id: String,
+    val country_id: String,
+    val code: String,
+    val name: String,
+    val type: String
+) {
+    fun toDomain() = Province(
+        id = id,
+        country_id = country_id,
+        code = code,
+        name = name,
+        type = type
+    )
+}
+
+@Serializable
+private data class BusinessProfileResponse(
+    val id: String?,
+    val owner_id: String?,
+    val name: String,
+    val currency: String,
+    val tax_id: String?,
+    val terms: String?,
+    val brand_color: String?,
+    val logo_path: String?,
+    val business_type: String?,
+    val company_registration_number: String?,
+    val website: String?,
+    val industry: String?,
+    val employee_count: String?,
+    val business_address: String?, // JSON string
+    val country_id: String?,
+    val province_id: String?,
+    val phone: String?,
+    val description: String?,
+    val created_at: String?,
+    val updated_at: String?
+) {
+    fun toDomain() = BusinessProfile(
+        id = id,
+        owner_id = owner_id,
+        name = name,
+        currency = currency,
+        tax_id = tax_id,
+        terms = terms,
+        brand_color = brand_color,
+        logo_path = logo_path,
+        business_type = business_type?.let { 
+            try { 
+                za.co.quantive.app.domain.profile.BusinessType.valueOf(it.uppercase()) 
+            } catch (e: Exception) { null }
+        },
+        company_registration_number = company_registration_number,
+        website = website,
+        industry = industry,
+        employee_count = employee_count?.let {
+            try {
+                za.co.quantive.app.domain.profile.EmployeeCount.valueOf(it.uppercase())
+            } catch (e: Exception) { null }
+        },
+        business_address = business_address?.let {
+            try {
+                Json.decodeFromString<za.co.quantive.app.domain.profile.BusinessAddress>(it)
+            } catch (e: Exception) { null }
+        },
+        country_id = country_id,
+        province_id = province_id,
+        phone = phone,
+        description = description,
+        created_at = created_at,
+        updated_at = updated_at
+    )
+}
+
+@Serializable
+private data class CreateBusinessProfileRequest(
+    val name: String,
+    val business_type: String?,
+    val company_registration_number: String?,
+    val website: String?,
+    val industry: String?,
+    val employee_count: String?,
+    val business_address: String?, // JSON string
+    val country_id: String?,
+    val province_id: String?,
+    val phone: String?,
+    val description: String?
+)
+
+@Serializable
+private data class UpdateBusinessProfileRequest(
+    val name: String?,
+    val business_type: String?,
+    val company_registration_number: String?,
+    val website: String?,
+    val industry: String?,
+    val employee_count: String?,
+    val business_address: String?, // JSON string
+    val country_id: String?,
+    val province_id: String?,
+    val phone: String?,
+    val description: String?
+)
