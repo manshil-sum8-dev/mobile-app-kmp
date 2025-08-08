@@ -1,0 +1,118 @@
+package za.co.quantive.app.data.local
+
+import za.co.quantive.app.core.cache.SimpleCache
+import za.co.quantive.app.data.remote.repository.AnalyticsCache
+import za.co.quantive.app.data.remote.api.*
+import za.co.quantive.app.domain.entities.DateRange
+import kotlin.time.Duration.Companion.minutes
+
+/**
+ * Smart caching implementation for analytics data
+ * Short TTL (5 minutes) for real-time feel as per guidelines
+ */
+class AnalyticsCacheImpl(
+    private val cache: SimpleCache = SimpleCache()
+) : AnalyticsCache {
+    
+    companion object {
+        // TTL values from caching guidelines - shorter for analytics
+        private val DASHBOARD_TTL = 5.minutes      // Real-time feel
+        private val ANALYTICS_TTL = 5.minutes      // Business metrics  
+        private val METRICS_TTL = 5.minutes        // Time-series data
+    }
+    
+    override suspend fun getDashboardOverview(dateRange: DateRange?): DashboardOverview? {
+        val cacheKey = buildDashboardCacheKey(dateRange)
+        return cache.get<DashboardOverview>(cacheKey)
+    }
+    
+    override suspend fun saveDashboardOverview(overview: DashboardOverview, dateRange: DateRange?) {
+        val cacheKey = buildDashboardCacheKey(dateRange)
+        cache.put(cacheKey, overview, DASHBOARD_TTL)
+    }
+    
+    override suspend fun getBusinessMetrics(dateRange: DateRange?, granularity: MetricGranularity): BusinessMetrics? {
+        val cacheKey = buildMetricsCacheKey(dateRange, granularity)
+        return cache.get<BusinessMetrics>(cacheKey)
+    }
+    
+    override suspend fun saveBusinessMetrics(metrics: BusinessMetrics, dateRange: DateRange?, granularity: MetricGranularity) {
+        val cacheKey = buildMetricsCacheKey(dateRange, granularity)
+        cache.put(cacheKey, metrics, METRICS_TTL)
+    }
+    
+    override suspend fun getRevenueAnalytics(dateRange: DateRange?): RevenueAnalytics? {
+        val cacheKey = buildAnalyticsCacheKey("revenue", dateRange)
+        return cache.get<RevenueAnalytics>(cacheKey)
+    }
+    
+    override suspend fun saveRevenueAnalytics(analytics: RevenueAnalytics, dateRange: DateRange?) {
+        val cacheKey = buildAnalyticsCacheKey("revenue", dateRange)
+        cache.put(cacheKey, analytics, ANALYTICS_TTL)
+    }
+    
+    override suspend fun getCustomerAnalytics(dateRange: DateRange?): CustomerAnalytics? {
+        val cacheKey = buildAnalyticsCacheKey("customer", dateRange)
+        return cache.get<CustomerAnalytics>(cacheKey)
+    }
+    
+    override suspend fun saveCustomerAnalytics(analytics: CustomerAnalytics, dateRange: DateRange?) {
+        val cacheKey = buildAnalyticsCacheKey("customer", dateRange)
+        cache.put(cacheKey, analytics, ANALYTICS_TTL)
+    }
+    
+    override suspend fun getPaymentAnalytics(dateRange: DateRange?): PaymentAnalytics? {
+        val cacheKey = buildAnalyticsCacheKey("payment", dateRange)
+        return cache.get<PaymentAnalytics>(cacheKey)
+    }
+    
+    override suspend fun savePaymentAnalytics(analytics: PaymentAnalytics, dateRange: DateRange?) {
+        val cacheKey = buildAnalyticsCacheKey("payment", dateRange)
+        cache.put(cacheKey, analytics, ANALYTICS_TTL)
+    }
+    
+    override suspend fun getTaxAnalytics(dateRange: DateRange?): TaxAnalytics? {
+        val cacheKey = buildAnalyticsCacheKey("tax", dateRange)
+        return cache.get<TaxAnalytics>(cacheKey)
+    }
+    
+    override suspend fun saveTaxAnalytics(analytics: TaxAnalytics, dateRange: DateRange?) {
+        val cacheKey = buildAnalyticsCacheKey("tax", dateRange)
+        cache.put(cacheKey, analytics, ANALYTICS_TTL)
+    }
+    
+    override suspend fun clearCache() {
+        cache.invalidatePattern("dashboard*")
+        cache.invalidatePattern("analytics*")
+        cache.invalidatePattern("metrics*")
+    }
+    
+    override suspend fun clearExpiredCache() {
+        // The smart cache automatically handles expired entries
+        // This method exists for explicit cleanup if needed
+    }
+    
+    /**
+     * Build cache key for dashboard data
+     */
+    private fun buildDashboardCacheKey(dateRange: DateRange?): String = buildString {
+        append("dashboard_overview")
+        dateRange?.let { append("_${it.start}_${it.end}") }
+    }
+    
+    /**
+     * Build cache key for metrics data
+     */
+    private fun buildMetricsCacheKey(dateRange: DateRange?, granularity: MetricGranularity): String = buildString {
+        append("metrics_${granularity.name.lowercase()}")
+        dateRange?.let { append("_${it.start}_${it.end}") }
+    }
+    
+    /**
+     * Build cache key for analytics data
+     */
+    private fun buildAnalyticsCacheKey(type: String, dateRange: DateRange?): String = buildString {
+        append("analytics_$type")
+        dateRange?.let { append("_${it.start}_${it.end}") }
+    }
+}

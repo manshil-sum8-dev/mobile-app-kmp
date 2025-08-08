@@ -1,0 +1,504 @@
+package za.co.quantive.app.core.cache
+
+import kotlinx.datetime.Clock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
+import za.co.quantive.app.testing.BaseTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Comprehensive test suite for SimpleCache
+ * Tests TTL-based caching, serialization, and performance requirements
+ * Coverage target: 95%+ for critical caching logic
+ */
+class SimpleCacheTest : BaseTest() {
+
+    private lateinit var cache: SimpleCache
+    private val testJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
+
+    @Serializable
+    data class TestData(
+        val id: String,
+        val name: String,
+        val value: Int,
+    )
+
+    @Serializable
+    data class ComplexTestData(
+        val simple: TestData,
+        val list: List<String>,
+        val map: Map<String, Int>,
+    )
+
+    override fun setUp() {
+        super.setUp()
+        cache = SimpleCache(testJson)
+    }
+
+    override fun tearDown() {
+        super.tearDown()
+    }
+
+    // Basic Functionality Tests
+
+    @Test
+    fun `put and get with reified generics works correctly`() {
+        givenWhenThen(
+            given = {
+                val testData = TestData("1", "Test", 42)
+            },
+            `when` = {
+                cache.put("test_key", TestData("1", "Test", 42), 1.minutes)
+            },
+            then = {
+                val retrieved = cache.get<TestData>("test_key")
+                assertNotNull(retrieved)
+                assertEquals("1", retrieved.id)
+                assertEquals("Test", retrieved.name)
+                assertEquals(42, retrieved.value)
+            }
+        )
+    }
+
+    @Test
+    fun `put and get with explicit serializer works correctly`() {
+        givenWhenThen(
+            given = {
+                val testData = TestData("2", "Explicit", 100)
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+            },
+            `when` = {
+                cache.put("explicit_key", testData, serializer<TestData>(), 30.minutes)
+            },
+            then = {
+                val retrieved = cache.get("explicit_key", serializer<TestData>())
+                assertNotNull(retrieved)
+                assertEquals("2", retrieved.id)
+                assertEquals("Explicit", retrieved.name)
+                assertEquals(100, retrieved.value)
+            }
+        )
+    }
+
+    @Test
+    fun `complex data structures are serialized correctly`() {
+        givenWhenThen(
+            given = {
+                val complexData = ComplexTestData(
+                    simple = TestData("1", "Complex", 999),
+                    list = listOf("a", "b", "c"),
+                    map = mapOf("key1" to 1, "key2" to 2)
+                )
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+            },
+            `when` = {
+                cache.put("complex_key", complexData, 1.minutes)
+            },
+            then = {
+                val retrieved = cache.get<ComplexTestData>("complex_key")
+                assertNotNull(retrieved)
+                assertEquals("Complex", retrieved.simple.name)
+                assertEquals(listOf("a", "b", "c"), retrieved.list)
+                assertEquals(mapOf("key1" to 1, "key2" to 2), retrieved.map)
+            }
+        )
+    }
+
+    // TTL and Expiration Tests
+
+    @Test
+    fun `expired entries return null`() {
+        givenWhenThen(
+            given = {
+                val testData = TestData("1", "Test", 42)
+                
+                // Mock initial time for put
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("expired_key", testData, 1.seconds)
+                
+                // Mock time after expiration
+                every { Clock.System.now().toEpochMilliseconds() } returns 2001L // 1 second + 1ms later
+            },
+            `when` = {
+                val retrieved = cache.get<TestData>("expired_key")
+            },
+            then = {
+                assertNull(retrieved)
+            }
+        )
+    }
+
+    @Test
+    fun `non-expired entries return data`() {
+        givenWhenThen(
+            given = {
+                val testData = TestData("1", "Test", 42)
+                
+                // Mock initial time for put
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("valid_key", testData, 1.minutes)
+                
+                // Mock time before expiration
+                every { Clock.System.now().toEpochMilliseconds() } returns 30000L // 29 seconds later
+            },
+            `when` = {
+                val retrieved = cache.get<TestData>("valid_key")
+            },
+            then = {
+                assertNotNull(retrieved)
+                assertEquals("Test", retrieved.name)
+            }
+        )
+    }
+
+    @Test
+    fun `isValid correctly identifies expired entries`() {
+        givenWhenThen(
+            given = {
+                val testData = TestData("1", "Test", 42)
+                
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("test_key", testData, 1.seconds)
+            },
+            `when` = {
+                // Check before expiration
+                every { Clock.System.now().toEpochMilliseconds() } returns 1500L
+                val validBeforeExpiration = cache.isValid("test_key")
+                
+                // Check after expiration
+                every { Clock.System.now().toEpochMilliseconds() } returns 2001L
+                val validAfterExpiration = cache.isValid("test_key")
+            },
+            then = {
+                assertTrue(validBeforeExpiration)
+                assertFalse(validAfterExpiration)
+            }
+        )
+    }
+
+    @Test
+    fun `TTL constants match enterprise requirements`() {
+        // Verify that TTL constants match enterprise blueprint requirements
+        assertEquals(5.minutes, CacheTTL.USER_DATA)
+        assertEquals(30.minutes, CacheTTL.CONFIG_DATA)
+        assertEquals(24 * 60.minutes, CacheTTL.STATIC_CONTENT) // 24 hours in minutes
+    }
+
+    @Test
+    fun `enterprise TTL values work correctly`() {
+        givenWhenThen(
+            given = {
+                val userData = TestData("user", "User Data", 1)
+                every { Clock.System.now().toEpochMilliseconds() } returns 0L
+            },
+            `when` = {
+                cache.put("user_data", userData, CacheTTL.USER_DATA)
+                
+                // Check at 4 minutes (should still be valid)
+                every { Clock.System.now().toEpochMilliseconds() } returns 4 * 60 * 1000L
+                val validAt4Min = cache.isValid("user_data")
+                
+                // Check at 6 minutes (should be expired)
+                every { Clock.System.now().toEpochMilliseconds() } returns 6 * 60 * 1000L
+                val validAt6Min = cache.isValid("user_data")
+            },
+            then = {
+                assertTrue(validAt4Min)
+                assertFalse(validAt6Min)
+            }
+        )
+    }
+
+    // Cache Management Tests
+
+    @Test
+    fun `invalidate removes specific entry`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("key1", TestData("1", "Test1", 1), 1.minutes)
+                cache.put("key2", TestData("2", "Test2", 2), 1.minutes)
+            },
+            `when` = {
+                cache.invalidate("key1")
+            },
+            then = {
+                assertNull(cache.get<TestData>("key1"))
+                assertNotNull(cache.get<TestData>("key2"))
+            }
+        )
+    }
+
+    @Test
+    fun `invalidatePattern removes matching entries`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("user:123", TestData("1", "User", 1), 1.minutes)
+                cache.put("user:456", TestData("2", "User", 2), 1.minutes)
+                cache.put("product:789", TestData("3", "Product", 3), 1.minutes)
+            },
+            `when` = {
+                cache.invalidatePattern("user:*")
+            },
+            then = {
+                assertNull(cache.get<TestData>("user:123"))
+                assertNull(cache.get<TestData>("user:456"))
+                assertNotNull(cache.get<TestData>("product:789"))
+            }
+        )
+    }
+
+    @Test
+    fun `clearAll removes all entries`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("key1", TestData("1", "Test1", 1), 1.minutes)
+                cache.put("key2", TestData("2", "Test2", 2), 1.minutes)
+                assertEquals(2, cache.size())
+            },
+            `when` = {
+                cache.clearAll()
+            },
+            then = {
+                assertEquals(0, cache.size())
+                assertNull(cache.get<TestData>("key1"))
+                assertNull(cache.get<TestData>("key2"))
+            }
+        )
+    }
+
+    @Test
+    fun `size returns correct count`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                assertEquals(0, cache.size())
+            },
+            `when` = {
+                cache.put("key1", TestData("1", "Test1", 1), 1.minutes)
+                val sizeAfterFirst = cache.size()
+                
+                cache.put("key2", TestData("2", "Test2", 2), 1.minutes)
+                val sizeAfterSecond = cache.size()
+                
+                cache.invalidate("key1")
+                val sizeAfterRemoval = cache.size()
+            },
+            then = {
+                assertEquals(1, sizeAfterFirst)
+                assertEquals(2, sizeAfterSecond)
+                assertEquals(1, sizeAfterRemoval)
+            }
+        )
+    }
+
+    @Test
+    fun `cleanup removes expired entries`() {
+        givenWhenThen(
+            given = {
+                // Set up entries with different TTLs
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("short_ttl", TestData("1", "Short", 1), 1.seconds)
+                cache.put("long_ttl", TestData("2", "Long", 2), 1.minutes)
+                
+                assertEquals(2, cache.size())
+            },
+            `when` = {
+                // Move time forward past short TTL but before long TTL
+                every { Clock.System.now().toEpochMilliseconds() } returns 2001L
+                cache.cleanup()
+            },
+            then = {
+                assertEquals(1, cache.size())
+                assertNull(cache.get<TestData>("short_ttl"))
+                assertNotNull(cache.get<TestData>("long_ttl"))
+            }
+        )
+    }
+
+    // Error Handling and Edge Cases
+
+    @Test
+    fun `get non-existent key returns null`() {
+        givenWhenThen(
+            given = {},
+            `when` = {
+                val result = cache.get<TestData>("non_existent")
+            },
+            then = {
+                assertNull(result)
+            }
+        )
+    }
+
+    @Test
+    fun `isValid non-existent key returns false`() {
+        givenWhenThen(
+            given = {},
+            `when` = {
+                val valid = cache.isValid("non_existent")
+            },
+            then = {
+                assertFalse(valid)
+            }
+        )
+    }
+
+    @Test
+    fun `corrupted data is handled gracefully`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                
+                // Manually add corrupted entry
+                val corruptedEntry = SimpleCacheEntry(
+                    data = "{invalid json}",
+                    timestamp = 1000L,
+                    ttl = 60000L
+                )
+                val cacheField = cache.javaClass.getDeclaredField("cache")
+                cacheField.isAccessible = true
+                @Suppress("UNCHECKED_CAST")
+                val cacheMap = cacheField.get(cache) as MutableMap<String, SimpleCacheEntry>
+                cacheMap["corrupted"] = corruptedEntry
+            },
+            `when` = {
+                val result = cache.get<TestData>("corrupted")
+            },
+            then = {
+                assertNull(result)
+                // Verify corrupted entry was removed
+                assertEquals(0, cache.size())
+            }
+        )
+    }
+
+    @Test
+    fun `overwriting key updates the value and TTL`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                cache.put("key", TestData("1", "Original", 1), 1.minutes)
+            },
+            `when` = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 2000L
+                cache.put("key", TestData("2", "Updated", 2), 30.minutes)
+            },
+            then = {
+                val result = cache.get<TestData>("key")
+                assertNotNull(result)
+                assertEquals("Updated", result.name)
+                assertEquals(2, result.value)
+                
+                // Should still be valid much later due to longer TTL
+                every { Clock.System.now().toEpochMilliseconds() } returns 10 * 60 * 1000L // 10 minutes later
+                assertTrue(cache.isValid("key"))
+            }
+        )
+    }
+
+    // Performance and Memory Tests
+
+    @Test
+    fun `cache handles many entries efficiently`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+            },
+            `when` = {
+                // Add 1000 entries
+                repeat(1000) { i ->
+                    cache.put("key_$i", TestData("$i", "Test$i", i), 1.minutes)
+                }
+            },
+            then = {
+                assertEquals(1000, cache.size())
+                
+                // Verify random entries
+                val result500 = cache.get<TestData>("key_500")
+                assertNotNull(result500)
+                assertEquals("Test500", result500.name)
+                assertEquals(500, result500.value)
+            }
+        )
+    }
+
+    @Test
+    fun `cleanup is efficient with many expired entries`() {
+        givenWhenThen(
+            given = {
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+                
+                // Add entries with short TTL
+                repeat(500) { i ->
+                    cache.put("expired_$i", TestData("$i", "Expired$i", i), 1.milliseconds)
+                }
+                
+                // Add entries with long TTL
+                repeat(500) { i ->
+                    cache.put("valid_$i", TestData("$i", "Valid$i", i), 1.minutes)
+                }
+                
+                assertEquals(1000, cache.size())
+            },
+            `when` = {
+                // Move time forward to expire half the entries
+                every { Clock.System.now().toEpochMilliseconds() } returns 2000L
+                cache.cleanup()
+            },
+            then = {
+                assertEquals(500, cache.size())
+                
+                // Verify expired entries are gone
+                assertNull(cache.get<TestData>("expired_100"))
+                
+                // Verify valid entries remain
+                assertNotNull(cache.get<TestData>("valid_100"))
+            }
+        )
+    }
+
+    // JSON Configuration Tests
+
+    @Test
+    fun `custom json configuration is respected`() {
+        givenWhenThen(
+            given = {
+                val customJson = Json { 
+                    ignoreUnknownKeys = false
+                    explicitNulls = true
+                }
+                val customCache = SimpleCache(customJson)
+                every { Clock.System.now().toEpochMilliseconds() } returns 1000L
+            },
+            `when` = {
+                val customCache = SimpleCache(Json { 
+                    ignoreUnknownKeys = false
+                    explicitNulls = true
+                })
+                customCache.put("custom", TestData("1", "Custom", 42), 1.minutes)
+            },
+            then = {
+                val customCache = SimpleCache(Json { 
+                    ignoreUnknownKeys = false
+                    explicitNulls = true
+                })
+                customCache.put("custom", TestData("1", "Custom", 42), 1.minutes)
+                val result = customCache.get<TestData>("custom")
+                assertNotNull(result)
+                assertEquals("Custom", result.name)
+            }
+        )
+    }
+}

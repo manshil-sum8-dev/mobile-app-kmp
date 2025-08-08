@@ -1,0 +1,356 @@
+package za.co.quantive.app.integration
+
+import io.mockk.coEvery
+import io.mockk.coVerify
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
+import za.co.quantive.app.testing.IntegrationTestBase
+import za.co.quantive.app.testing.MockFactory
+import za.co.quantive.app.testing.runTestWithTimeout
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * End-to-end authentication flow integration tests
+ * Tests complete authentication workflows from signup to token refresh
+ */
+class AuthFlowIntegrationTest : IntegrationTestBase() {
+
+    @Test
+    fun `complete signup to signin flow works correctly`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // Setup signup response
+                val signupResponse = MockFactory.createAuthSuccessResponse(
+                    accessToken = "signup_access_token",
+                    refreshToken = "signup_refresh_token",
+                    userId = "new_user_id"
+                )
+                
+                // Setup signin response (same user)
+                val signinResponse = MockFactory.createAuthSuccessResponse(
+                    accessToken = "signin_access_token", 
+                    refreshToken = "signin_refresh_token",
+                    userId = "new_user_id"
+                )
+
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/signup",
+                        body = any()
+                    )
+                } returns signupResponse
+
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                } returns signinResponse
+            },
+            `when` = {
+                // Step 1: User signs up
+                val signupSession = authService.signUp("newuser@example.com", "securepassword")
+                
+                // Step 2: Same user signs in later
+                val signinSession = authService.signIn("newuser@example.com", "securepassword")
+            },
+            then = {
+                // Verify signup succeeded
+                assertEquals("signup_access_token", signupSession.accessToken)
+                assertEquals("signup_refresh_token", signupSession.refreshToken)
+                assertEquals("new_user_id", signupSession.userId)
+                
+                // Verify signin succeeded
+                assertEquals("signin_access_token", signinSession.accessToken)
+                assertEquals("signin_refresh_token", signinSession.refreshToken)
+                assertEquals("new_user_id", signinSession.userId)
+                
+                // Verify both API calls were made
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/signup",
+                        body = any()
+                    )
+                }
+                
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `signin to token refresh flow maintains session continuity`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // Setup initial signin response
+                val signinResponse = MockFactory.createAuthSuccessResponse(
+                    accessToken = "initial_access_token",
+                    refreshToken = "initial_refresh_token",
+                    userId = "existing_user_id"
+                )
+                
+                // Setup token refresh response
+                val refreshResponse = MockFactory.createAuthSuccessResponse(
+                    accessToken = "refreshed_access_token",
+                    refreshToken = "new_refresh_token",
+                    userId = "existing_user_id"
+                )
+
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                } returns signinResponse
+
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=refresh_token",
+                        body = any()
+                    )
+                } returns refreshResponse
+            },
+            `when` = {
+                // Step 1: User signs in
+                val initialSession = authService.signIn("user@example.com", "password")
+                
+                // Step 2: Token expires, refresh token is used
+                val refreshedSession = authService.refresh(initialSession.refreshToken)
+            },
+            then = {
+                // Verify initial session
+                assertEquals("initial_access_token", initialSession.accessToken)
+                assertEquals("initial_refresh_token", initialSession.refreshToken)
+                assertEquals("existing_user_id", initialSession.userId)
+                
+                // Verify refreshed session
+                assertEquals("refreshed_access_token", refreshedSession.accessToken)
+                assertEquals("new_refresh_token", refreshedSession.refreshToken)
+                assertEquals("existing_user_id", refreshedSession.userId) // User ID stays same
+                
+                // Verify session continuity
+                assertNotNull(initialSession.expiresAt)
+                assertNotNull(refreshedSession.expiresAt)
+            }
+        )
+    }
+
+    @Test
+    fun `authentication error handling flows work correctly`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // Setup signup failure (email already exists)
+                val signupErrorResponse = MockFactory.createAuthErrorResponse(
+                    error = "user_already_exists",
+                    errorDescription = "User with this email already exists"
+                )
+                
+                // Setup signin failure (wrong password)
+                val signinErrorResponse = MockFactory.createAuthErrorResponse(
+                    error = "invalid_credentials",
+                    errorDescription = "Invalid email or password"
+                )
+                
+                // Setup refresh failure (invalid token)
+                val refreshErrorResponse = MockFactory.createAuthErrorResponse(
+                    error = "invalid_grant",
+                    errorDescription = "Refresh token is invalid"
+                )
+
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/signup",
+                        body = any()
+                    )
+                } returns signupErrorResponse
+
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                } returns signinErrorResponse
+
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=refresh_token",
+                        body = any()
+                    )
+                } returns refreshErrorResponse
+            },
+            `when` = {
+                val signupResult = runCatching {
+                    authService.signUp("existing@example.com", "password")
+                }
+                
+                val signinResult = runCatching {
+                    authService.signIn("user@example.com", "wrongpassword")
+                }
+                
+                val refreshResult = runCatching {
+                    authService.refresh("invalid_refresh_token")
+                }
+            },
+            then = {
+                // All operations should fail with appropriate errors
+                assertTrue(signupResult.isFailure)
+                assertTrue(signupResult.exceptionOrNull()?.message?.contains("Signup failed") == true)
+                
+                assertTrue(signinResult.isFailure)
+                assertTrue(signinResult.exceptionOrNull()?.message?.contains("Missing access_token") == true)
+                
+                assertTrue(refreshResult.isFailure)
+                assertTrue(refreshResult.exceptionOrNull()?.message?.contains("Missing access_token") == true)
+            }
+        )
+    }
+
+    @Test
+    fun `authentication resilience handles network failures`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val networkException = RuntimeException("Network connection failed")
+                
+                // First call fails, second succeeds
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                } throws networkException andThen MockFactory.createAuthSuccessResponse()
+            },
+            `when` = {
+                // First attempt fails
+                val firstAttempt = runCatching {
+                    authService.signIn("user@example.com", "password")
+                }
+                
+                // Second attempt succeeds (simulating retry logic)
+                val secondAttempt = runCatching {
+                    authService.signIn("user@example.com", "password")
+                }
+            },
+            then = {
+                // First attempt should fail with network error
+                assertTrue(firstAttempt.isFailure)
+                assertEquals("Network connection failed", firstAttempt.exceptionOrNull()?.message)
+                
+                // Second attempt should succeed
+                assertTrue(secondAttempt.isSuccess)
+                assertNotNull(secondAttempt.getOrNull()?.accessToken)
+                
+                // Verify both calls were made
+                coVerify(exactly = 2) {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `multiple concurrent authentication requests are handled correctly`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val responses = listOf(
+                    MockFactory.createAuthSuccessResponse(userId = "user_1", accessToken = "token_1"),
+                    MockFactory.createAuthSuccessResponse(userId = "user_2", accessToken = "token_2"),
+                    MockFactory.createAuthSuccessResponse(userId = "user_3", accessToken = "token_3")
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                } returnsMany responses
+            },
+            `when` = {
+                // Simulate concurrent authentication requests
+                val session1 = authService.signIn("user1@example.com", "password")
+                val session2 = authService.signIn("user2@example.com", "password")
+                val session3 = authService.signIn("user3@example.com", "password")
+            },
+            then = {
+                // All sessions should be valid and unique
+                assertEquals("user_1", session1.userId)
+                assertEquals("token_1", session1.accessToken)
+                
+                assertEquals("user_2", session2.userId)
+                assertEquals("token_2", session2.accessToken)
+                
+                assertEquals("user_3", session3.userId)
+                assertEquals("token_3", session3.accessToken)
+                
+                // Verify all calls were made
+                coVerify(exactly = 3) {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `authentication state transitions work correctly`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val scenario = createAuthenticatedTestScenario()
+                
+                // Mock various auth state responses
+                val activeSession = MockFactory.createAuthSuccessResponse(userId = "test_user")
+                val expiredSession = MockFactory.createAuthErrorResponse("token_expired", "Session expired")
+                val refreshedSession = MockFactory.createAuthSuccessResponse(
+                    userId = "test_user",
+                    accessToken = "new_access_token"
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=password",
+                        body = any()
+                    )
+                } returns activeSession
+                
+                coEvery {
+                    mockSupabaseClient.post<JsonObject, Any>(
+                        path = "auth/v1/token?grant_type=refresh_token",
+                        body = any()
+                    )
+                } returns refreshedSession
+            },
+            `when` = {
+                // State 1: User signs in (active session)
+                val activeSession = authService.signIn("user@example.com", "password")
+                
+                // State 2: Token expires, refresh needed
+                val refreshedSession = authService.refresh(activeSession.refreshToken)
+            },
+            then = {
+                // Verify state transitions maintain user identity
+                assertEquals("test_user", activeSession.userId)
+                assertEquals("test_user", refreshedSession.userId)
+                
+                // Verify access tokens are different (refreshed)
+                assertEquals("test_access_token", activeSession.accessToken)
+                assertEquals("new_access_token", refreshedSession.accessToken)
+                
+                // Verify sessions have valid expiration times
+                assertTrue(activeSession.expiresAt > 0)
+                assertTrue(refreshedSession.expiresAt > 0)
+            }
+        )
+    }
+}

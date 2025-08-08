@@ -1,52 +1,57 @@
 package za.co.quantive.app.data.remote.api
 
 import za.co.quantive.app.data.remote.SupabaseClient
-import za.co.quantive.app.domain.entities.*
+import za.co.quantive.app.domain.contact.ContactType
+import za.co.quantive.app.domain.contact.CreateContactRequest
+import za.co.quantive.app.domain.contact.PatchContactRequest
+import za.co.quantive.app.domain.contact.UpdateContactRequest
+import za.co.quantive.app.domain.entities.BusinessContact
+import za.co.quantive.app.domain.entities.ContactFilter
 
 /**
  * Contact API implementation using Supabase backend
  */
 class ContactApiImpl(
-    private val client: SupabaseClient
+    private val client: SupabaseClient,
 ) : ContactApi {
 
     override suspend fun getContacts(
         page: Int,
         limit: Int,
-        filter: ContactFilter?
+        filter: ContactFilter?,
     ): ApiResponse<PaginatedResponse<BusinessContact>> {
         return try {
             // Build query parameters for filtering and pagination
             val params = mutableMapOf<String, String?>(
                 "offset" to (page * limit).toString(),
                 "limit" to limit.toString(),
-                "select" to "*"
+                "select" to "*",
             )
-            
+
             // Apply filters if provided
             filter?.let { f ->
                 f.type?.let { params["type"] = "eq.${it.name}" }
                 f.searchQuery?.let { params["or"] = "(name.ilike.*$it*,email.ilike.*$it*,phone.ilike.*$it*)" }
             }
-            
+
             // Call Supabase REST API
             val contacts: List<BusinessContact> = client.get("rest/v1/contacts", params)
-            
+
             // Get total count for pagination (separate query)
             val countParams = params.filterKeys { it != "offset" && it != "limit" && it != "select" }
                 .toMutableMap().apply { put("select", "count") }
             val countResponse: List<Map<String, Int>> = client.get("rest/v1/contacts", countParams)
             val total = countResponse.firstOrNull()?.get("count") ?: 0
-            
+
             ApiResponse.success(
                 PaginatedResponse(
                     data = contacts,
                     pagination = PaginationInfo(
                         page = page,
                         limit = limit,
-                        total = total
-                    )
-                )
+                        total = total,
+                    ),
+                ),
             )
         } catch (e: Exception) {
             ApiResponse.error("Failed to fetch contacts: ${e.message}")
@@ -57,12 +62,12 @@ class ContactApiImpl(
         return try {
             val params = mapOf(
                 "select" to "*",
-                "id" to "eq.$id"
+                "id" to "eq.$id",
             )
-            
+
             val contacts: List<BusinessContact> = client.get("rest/v1/contacts", params)
             val contact = contacts.firstOrNull()
-            
+
             if (contact != null) {
                 ApiResponse.success(contact)
             } else {
@@ -92,7 +97,7 @@ class ContactApiImpl(
                         "city" to addr.city,
                         "province" to addr.province,
                         "postal_code" to addr.postalCode,
-                        "country" to addr.country
+                        "country" to addr.country,
                     )
                 },
                 "tax_details" to request.taxDetails?.let { tax ->
@@ -101,7 +106,7 @@ class ContactApiImpl(
                         "company_registration" to tax.companyRegistration,
                         "tax_number" to tax.taxNumber,
                         "is_vat_registered" to tax.isVatRegistered,
-                        "vat_rate" to tax.vatRate
+                        "vat_rate" to tax.vatRate,
                     )
                 },
                 "banking_details" to request.bankingDetails?.let { bank ->
@@ -110,17 +115,17 @@ class ContactApiImpl(
                         "branch_code" to bank.branchCode,
                         "account_number" to bank.accountNumber,
                         "account_type" to bank.accountType.name,
-                        "account_holder_name" to bank.accountHolderName
+                        "account_holder_name" to bank.accountHolderName,
                     )
-                }
+                },
             )
-            
+
             // Call backend function that creates contact with validation
             val createdContact: BusinessContact = client.post(
                 "rest/v1/rpc/create_contact",
-                contactData
+                contactData,
             )
-            
+
             ApiResponse.success(createdContact)
         } catch (e: Exception) {
             ApiResponse.error("Failed to create contact: ${e.message}")
@@ -131,7 +136,7 @@ class ContactApiImpl(
         return try {
             // Update contact via backend function
             val updateData = mutableMapOf<String, Any?>(
-                "contact_id" to id
+                "contact_id" to id,
             ).apply {
                 request.name?.let { put("name", it) }
                 request.displayName?.let { put("display_name", it) }
@@ -142,40 +147,49 @@ class ContactApiImpl(
                 request.tags?.let { put("tags", it) }
                 request.isActive?.let { put("is_active", it) }
                 request.address?.let { addr ->
-                    put("address", mapOf<String, String?>(
-                        "street_address" to addr.streetAddress,
-                        "city" to addr.city,
-                        "province" to addr.province,
-                        "postal_code" to addr.postalCode,
-                        "country" to addr.country
-                    ))
+                    put(
+                        "address",
+                        mapOf<String, String?>(
+                            "street_address" to addr.streetAddress,
+                            "city" to addr.city,
+                            "province" to addr.province,
+                            "postal_code" to addr.postalCode,
+                            "country" to addr.country,
+                        ),
+                    )
                 }
                 request.taxDetails?.let { tax ->
-                    put("tax_details", mapOf<String, Any?>(
-                        "vat_number" to tax.vatNumber,
-                        "company_registration" to tax.companyRegistration,
-                        "tax_number" to tax.taxNumber,
-                        "is_vat_registered" to tax.isVatRegistered,
-                        "vat_rate" to tax.vatRate
-                    ))
+                    put(
+                        "tax_details",
+                        mapOf<String, Any?>(
+                            "vat_number" to tax.vatNumber,
+                            "company_registration" to tax.companyRegistration,
+                            "tax_number" to tax.taxNumber,
+                            "is_vat_registered" to tax.isVatRegistered,
+                            "vat_rate" to tax.vatRate,
+                        ),
+                    )
                 }
                 request.bankingDetails?.let { bank ->
-                    put("banking_details", mapOf<String, Any?>(
-                        "bank_name" to bank.bankName,
-                        "branch_code" to bank.branchCode,
-                        "account_number" to bank.accountNumber,
-                        "account_type" to bank.accountType.name,
-                        "account_holder_name" to bank.accountHolderName
-                    ))
+                    put(
+                        "banking_details",
+                        mapOf<String, Any?>(
+                            "bank_name" to bank.bankName,
+                            "branch_code" to bank.branchCode,
+                            "account_number" to bank.accountNumber,
+                            "account_type" to bank.accountType.name,
+                            "account_holder_name" to bank.accountHolderName,
+                        ),
+                    )
                 }
             }
-            
+
             // Call backend function that updates contact with validation
             val updatedContact: BusinessContact = client.post(
                 "rest/v1/rpc/update_contact",
-                updateData
+                updateData,
             )
-            
+
             ApiResponse.success(updatedContact)
         } catch (e: Exception) {
             ApiResponse.error("Failed to update contact: ${e.message}")
@@ -185,35 +199,41 @@ class ContactApiImpl(
     override suspend fun deleteContact(id: String): ApiResponse<Unit> {
         return try {
             val params = mapOf("id" to "eq.$id")
-            
+
             // Soft delete - update status to inactive or mark as deleted
             val updateData = mapOf("is_active" to false, "deleted_at" to "now()")
             client.post<Unit, Map<String, Any>>("rest/v1/contacts", updateData, params)
-            
+
             ApiResponse.success(Unit)
         } catch (e: Exception) {
             ApiResponse.error("Failed to delete contact: ${e.message}")
         }
     }
 
-    override suspend fun getContactSummary(dateRange: DateRange?): ApiResponse<ContactSummary> {
+    override suspend fun patchContact(id: String, request: PatchContactRequest): ApiResponse<BusinessContact> {
         return try {
-            // Get contact summary via backend aggregation function
-            val params = mutableMapOf<String, String?>()
-            dateRange?.let {
-                params["start_date"] = it.start
-                params["end_date"] = it.end
-            }
-            
-            // Call backend function that calculates contact metrics
-            val summary: ContactSummary = client.post(
-                "rest/v1/rpc/get_contact_summary",
-                params
-            )
-            
-            ApiResponse.success(summary)
+            // TODO: Implement PATCH contact
+            ApiResponse.error("Patch contact not implemented")
         } catch (e: Exception) {
-            ApiResponse.error("Failed to fetch contact summary: ${e.message}")
+            ApiResponse.error("Failed to patch contact: ${e.message}")
+        }
+    }
+
+    override suspend fun searchContacts(query: String, type: ContactType?, limit: Int): ApiResponse<List<BusinessContact>> {
+        return try {
+            // TODO: Implement contact search
+            ApiResponse.error("Search contacts not implemented")
+        } catch (e: Exception) {
+            ApiResponse.error("Failed to search contacts: ${e.message}")
+        }
+    }
+
+    override suspend fun getRecentContacts(type: ContactType?, limit: Int): ApiResponse<List<BusinessContact>> {
+        return try {
+            // TODO: Implement recent contacts
+            ApiResponse.error("Recent contacts not implemented")
+        } catch (e: Exception) {
+            ApiResponse.error("Failed to get recent contacts: ${e.message}")
         }
     }
 }

@@ -1,77 +1,88 @@
 package za.co.quantive.app.data.remote.api
 
 import kotlinx.serialization.Serializable
-import za.co.quantive.app.domain.entities.*
+import za.co.quantive.app.domain.entities.Invoice
+import za.co.quantive.app.domain.entities.InvoiceFilter
+import za.co.quantive.app.domain.entities.InvoiceStatus
+import za.co.quantive.app.domain.entities.RecurringInfo
+import za.co.quantive.app.domain.entities.TemplateInfo
 
 /**
- * Backend API interface for invoice operations
- * All business logic, calculations, and validations are handled by the backend
+ * REST-first API interface for invoice operations
+ * CRUD operations use standard HTTP methods/endpoints
+ * Business logic handled by backend with proper REST patterns
  */
 interface InvoiceApi {
-    
+
+    // === STANDARD REST CRUD OPERATIONS ===
+
     /**
-     * Get paginated list of invoices with backend-applied filters
+     * GET /invoices - Get paginated list of invoices with backend-applied filters
      */
     suspend fun getInvoices(
         page: Int = 0,
         limit: Int = 20,
-        filter: InvoiceFilter? = null
+        filter: InvoiceFilter? = null,
     ): ApiResponse<PaginatedResponse<Invoice>>
-    
+
     /**
-     * Get single invoice by ID with all backend calculations
+     * GET /invoices/{id} - Get single invoice by ID with all backend calculations
      */
     suspend fun getInvoice(id: String): ApiResponse<Invoice>
-    
+
     /**
-     * Create invoice - backend handles all calculations and validations
+     * POST /invoices - Create new invoice with backend calculations
      */
     suspend fun createInvoice(request: CreateInvoiceRequest): ApiResponse<Invoice>
-    
+
     /**
-     * Update invoice - backend recalculates and revalidates
+     * PUT /invoices/{id} - Update existing invoice with recalculations
      */
     suspend fun updateInvoice(id: String, request: UpdateInvoiceRequest): ApiResponse<Invoice>
-    
+
     /**
-     * Delete invoice
+     * PATCH /invoices/{id} - Partial update (status changes, etc)
+     */
+    suspend fun patchInvoice(id: String, request: PatchInvoiceRequest): ApiResponse<Invoice>
+
+    /**
+     * DELETE /invoices/{id} - Soft delete invoice
      */
     suspend fun deleteInvoice(id: String): ApiResponse<Unit>
-    
+
+    // === INVOICE SUB-RESOURCES (REST nested resources) ===
+
     /**
-     * Send invoice to customer - backend handles delivery and status updates
+     * POST /invoices/{id}/send - Send invoice to customer
      */
     suspend fun sendInvoice(id: String, request: SendInvoiceRequest): ApiResponse<Invoice>
-    
+
     /**
-     * Record payment - backend updates calculations and status
+     * POST /invoices/{id}/payments - Record new payment
      */
     suspend fun recordPayment(id: String, request: RecordPaymentRequest): ApiResponse<Invoice>
-    
+
     /**
-     * Duplicate invoice - backend creates new invoice with calculations
+     * POST /invoices/{id}/duplicate - Create duplicate invoice
      */
     suspend fun duplicateInvoice(id: String): ApiResponse<Invoice>
-    
+
     /**
-     * Convert invoice to template
-     */
-    suspend fun convertToTemplate(id: String, templateName: String): ApiResponse<InvoiceTemplate>
-    
-    /**
-     * Create invoice from template - backend applies current rates and calculations
-     */
-    suspend fun createFromTemplate(templateId: String, request: CreateFromTemplateRequest): ApiResponse<Invoice>
-    
-    /**
-     * Get invoice PDF - backend generates with all current data
+     * GET /invoices/{id}/pdf - Generate and download PDF
      */
     suspend fun generatePdf(id: String, options: PdfGenerationOptions): ApiResponse<PdfResponse>
-    
+
+    // === TEMPLATE RESOURCES ===
+
     /**
-     * Get invoice summary/analytics - all calculations done by backend
+     * POST /invoice-templates - Convert invoice to template
      */
-    suspend fun getInvoiceSummary(dateRange: DateRange? = null): ApiResponse<InvoiceSummary>
+    suspend fun convertToTemplate(id: String, templateName: String): ApiResponse<InvoiceTemplate>
+
+    /**
+     * POST /invoices/from-template - Create invoice from template
+     */
+    suspend fun createFromTemplate(templateId: String, request: CreateFromTemplateRequest): ApiResponse<Invoice>
 }
 
 /**
@@ -88,7 +99,7 @@ data class CreateInvoiceRequest(
     val paymentTerms: String? = null,
     val templateInfo: TemplateInfo? = null,
     val recurringInfo: RecurringInfo? = null,
-    val metadata: Map<String, String> = emptyMap()
+    val metadata: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -97,21 +108,34 @@ data class CreateInvoiceItemRequest(
     val quantity: Double,
     val unitPrice: Double, // Raw amount - backend applies currency formatting
     val notes: String? = null,
-    val productId: String? = null
+    val productId: String? = null,
 )
 
 /**
- * Request to update existing invoice
+ * Request to update existing invoice (PUT - full update)
  */
 @Serializable
 data class UpdateInvoiceRequest(
-    val customerId: String? = null,
-    val items: List<CreateInvoiceItemRequest>? = null,
+    val customerId: String,
+    val items: List<CreateInvoiceItemRequest>,
     val dueDate: String? = null,
     val notes: String? = null,
     val termsAndConditions: String? = null,
     val paymentTerms: String? = null,
-    val metadata: Map<String, String>? = null
+    val metadata: Map<String, String> = emptyMap(),
+)
+
+/**
+ * Request for partial invoice updates (PATCH)
+ */
+@Serializable
+data class PatchInvoiceRequest(
+    val status: InvoiceStatus? = null,
+    val dueDate: String? = null,
+    val notes: String? = null,
+    val termsAndConditions: String? = null,
+    val paymentTerms: String? = null,
+    val metadata: Map<String, String>? = null,
 )
 
 /**
@@ -123,7 +147,7 @@ data class SendInvoiceRequest(
     val subject: String? = null,
     val message: String? = null,
     val attachPdf: Boolean = true,
-    val scheduleDateTime: String? = null // For scheduled sending
+    val scheduleDateTime: String? = null, // For scheduled sending
 )
 
 /**
@@ -136,7 +160,7 @@ data class RecordPaymentRequest(
     val paymentDate: String,
     val paymentMethod: String,
     val reference: String? = null,
-    val notes: String? = null
+    val notes: String? = null,
 )
 
 /**
@@ -147,7 +171,7 @@ data class CreateFromTemplateRequest(
     val customerId: String,
     val dueDate: String? = null,
     val notes: String? = null,
-    val customizations: Map<String, String> = emptyMap()
+    val customizations: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -158,7 +182,7 @@ data class PdfGenerationOptions(
     val includePaymentStub: Boolean = true,
     val watermark: String? = null,
     val locale: String = "en-ZA",
-    val template: String = "default"
+    val template: String = "default",
 )
 
 /**
@@ -169,7 +193,7 @@ data class PdfResponse(
     val url: String, // Temporary download URL
     val filename: String,
     val sizeBytes: Long,
-    val expiresAt: String // ISO timestamp
+    val expiresAt: String, // ISO timestamp
 )
 
 /**
@@ -186,7 +210,7 @@ data class InvoiceTemplate(
     val defaultDueDays: Int? = null,
     val isActive: Boolean = true,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
 )
 
 @Serializable
@@ -195,7 +219,5 @@ data class InvoiceTemplateItem(
     val quantity: Double,
     val unitPrice: Double,
     val notes: String? = null,
-    val productId: String? = null
+    val productId: String? = null,
 )
-
-// API response models are defined in ApiResponse.kt

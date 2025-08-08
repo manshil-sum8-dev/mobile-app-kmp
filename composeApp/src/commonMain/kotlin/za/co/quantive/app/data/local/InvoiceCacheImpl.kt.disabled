@@ -1,0 +1,226 @@
+package za.co.quantive.app.data.local
+
+import za.co.quantive.app.core.cache.SimpleCache
+import za.co.quantive.app.data.remote.repository.InvoiceCache
+import za.co.quantive.app.domain.entities.*
+import kotlin.time.Duration.Companion.minutes
+
+/**
+ * Smart caching implementation for invoices
+ * Short TTL (5 minutes) for business-critical data as per guidelines
+ */
+class InvoiceCacheImpl(
+    private val cache: SimpleCache = SimpleCache()
+) : InvoiceCache {
+    
+    companion object {
+        // TTL values from caching guidelines - short TTL for business-critical data
+        private val INVOICE_LIST_TTL = 5.minutes     // Invoices change frequently
+        private val DRAFT_LIST_TTL = 2.minutes       // Drafts change very frequently  
+        private val INVOICE_DETAIL_TTL = 10.minutes  // Individual invoice details
+        private val OVERDUE_LIST_TTL = 5.minutes     // Critical business data
+    }
+    
+    /**
+     * Get invoices with context-aware caching
+     */
+    override suspend fun getInvoices(filter: InvoiceFilter?): List<Invoice> {
+        val cacheKey = buildInvoiceListCacheKey(filter)
+        
+        // Try cache first
+        val cached = cache.get<List<Invoice>>(cacheKey)
+        if (cached != null) {
+            return cached
+        }
+        
+        // Cache miss - return empty list (caller will fetch from API)
+        return emptyList()
+    }
+    
+    /**
+     * Save invoice list with context-aware TTL
+     */
+    override suspend fun saveInvoices(invoices: List<Invoice>) {
+        // Save with different cache keys for common filter patterns
+        
+        // Save full recent list (default view)
+        val recentKey = "invoices_list_recent"
+        cache.put(recentKey, invoices, INVOICE_LIST_TTL)
+        
+        // Save status-filtered lists for common access patterns
+        groupInvoicesByStatus(invoices).forEach { (status, statusInvoices) ->
+            val statusKey = "invoices_list_${status.name}"
+            val ttl = if (status == InvoiceStatus.DRAFT) DRAFT_LIST_TTL else INVOICE_LIST_TTL
+            cache.put(statusKey, statusInvoices, ttl)
+        }
+        
+        // Save overdue invoices (critical business data)
+        val overdueInvoices = invoices.filter { it.metadata.isOverdue }
+        if (overdueInvoices.isNotEmpty()) {
+            cache.put("invoices_list_overdue", overdueInvoices, OVERDUE_LIST_TTL)
+        }
+        
+        // Cache individual invoices for detail view optimization
+        invoices.forEach { invoice ->
+            val invoiceKey = "invoice_${invoice.id}"
+            cache.put(invoiceKey, invoice, INVOICE_DETAIL_TTL)
+        }
+    }
+    
+    /**
+     * Get individual invoice from cache
+     */
+    override suspend fun getInvoice(id: String): Invoice? {
+        val cacheKey = "invoice_$id"
+        return cache.get<Invoice>(cacheKey)
+    }
+    
+    /**
+     * Save individual invoice to cache
+     */
+    override suspend fun saveInvoice(invoice: Invoice) {
+        val cacheKey = "invoice_${invoice.id}"
+        cache.put(cacheKey, invoice, INVOICE_DETAIL_TTL)
+        
+        // Don't invalidate lists automatically here - let the business operation handle it
+        // This avoids over-invalidation when just viewing invoice details
+    }
+    
+    /**
+     * Remove invoice from cache (soft delete)
+     */
+    override suspend fun deleteInvoice(id: String) {
+        cache.invalidate("invoice_$id")
+        
+        // Invalidate all invoice lists as the deleted invoice might be in any list
+        cache.invalidatePattern("invoices_list*")
+    }
+    
+    /**
+     * Clear all invoice caches
+     */
+    override suspend fun clearCache() {
+        cache.invalidatePattern("invoice*")
+    }
+    
+    /**
+     * Save invoice after creation - triggers invalidation
+     */
+    suspend fun saveNewInvoice(invoice: Invoice) {
+        val cacheKey = "invoice_${invoice.id}"
+        cache.put(cacheKey, invoice, INVOICE_DETAIL_TTL)
+        
+        // New invoice affects all lists
+        cache.invalidatePattern("invoices_list*")
+        cache.invalidatePattern("dashboard*")
+    }
+    
+    /**
+     * Save invoice after update - smart invalidation
+     */
+    suspend fun saveUpdatedInvoice(invoice: Invoice, statusChanged: Boolean = false) {
+        val cacheKey = "invoice_${invoice.id}"
+        cache.put(cacheKey, invoice, INVOICE_DETAIL_TTL)
+        
+        // Invalidate related lists
+        cache.invalidatePattern("invoices_list*")
+        if (statusChanged) {
+            cache.invalidatePattern("dashboard*")
+        }
+    }
+    
+    /**
+     * Get draft invoices (frequently accessed)
+     */
+    suspend fun getDraftInvoices(): List<Invoice> {
+        val cacheKey = "invoices_list_DRAFT"
+        return cache.get<List<Invoice>>(cacheKey) ?: emptyList()
+    }
+    
+    /**
+     * Get overdue invoices (critical business data)
+     */
+    suspend fun getOverdueInvoices(): List<Invoice> {
+        val cacheKey = "invoices_list_overdue"
+        return cache.get<List<Invoice>>(cacheKey) ?: emptyList()
+    }
+    
+    /**
+     * Get recent invoices (common dashboard view)
+     */
+    suspend fun getRecentInvoices(): List<Invoice> {
+        val cacheKey = "invoices_list_recent"
+        return cache.get<List<Invoice>>(cacheKey) ?: emptyList()
+    }
+    
+    /**
+     * Get invoices for specific customer (invoice creation context)
+     */
+    suspend fun getCustomerInvoices(customerId: String): List<Invoice> {
+        val cacheKey = "invoices_customer_$customerId"
+        return cache.get<List<Invoice>>(cacheKey) ?: emptyList()
+    }
+    
+    /**
+     * Save customer-specific invoices
+     */
+    suspend fun saveCustomerInvoices(customerId: String, invoices: List<Invoice>) {
+        val cacheKey = "invoices_customer_$customerId"
+        cache.put(cacheKey, invoices, INVOICE_LIST_TTL)
+    }
+    
+    
+    /**
+     * Build consistent cache key for invoice lists
+     */
+    private fun buildInvoiceListCacheKey(filter: InvoiceFilter?): String = buildString {
+        append("invoices_list")
+        
+        when {
+            filter == null -> append("_recent")
+            filter.status != null -> append("_${filter.status.name}")
+            filter.isOverdue == true -> append("_overdue") 
+            filter.customerId != null -> append("_customer_${filter.customerId}")
+            filter.searchQuery?.isNotBlank() == true -> append("_search_${filter.searchQuery.hashCode()}")
+            filter.dateRange != null -> append("_date_${filter.dateRange.start}_${filter.dateRange.end}")
+            else -> append("_filtered_${filter.hashCode()}")
+        }
+    }
+    
+    /**
+     * Group invoices by status for efficient caching
+     */
+    private fun groupInvoicesByStatus(invoices: List<Invoice>): Map<InvoiceStatus, List<Invoice>> {
+        return invoices.groupBy { it.status }
+    }
+    
+    /**
+     * Determine optimal cache limit based on filter context
+     */
+    private fun determineOptimalLimit(filter: InvoiceFilter?): Int = when {
+        filter?.status == InvoiceStatus.DRAFT -> 20 // Fewer drafts typically
+        filter?.isOverdue == true -> 50 // Show all overdue (critical)
+        filter?.customerId != null -> 30 // Customer-specific invoices
+        else -> 50 // Standard list size
+    }
+    
+    /**
+     * Get cache statistics for monitoring
+     */
+    suspend fun getCacheStats(): InvoiceCacheStats {
+        return InvoiceCacheStats(
+            totalInvoiceEntries = cache.size(),
+            memoryEntries = cache.size(),
+            persistentEntries = 0
+        )
+    }
+}
+
+/**
+ * Invoice cache statistics for monitoring
+ */
+data class InvoiceCacheStats(
+    val totalInvoiceEntries: Int,
+    val memoryEntries: Int,
+    val persistentEntries: Int
+)

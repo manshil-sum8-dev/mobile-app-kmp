@@ -1,9 +1,9 @@
 package za.co.quantive.app
 
-import androidx.compose.runtime.*
-import za.co.quantive.app.presentation.QuantiveAppContent
-import za.co.quantive.app.presentation.theme.QuantiveTheme
+import androidx.compose.runtime.Composable
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import za.co.quantive.app.presentation.QuantiveApp
+import za.co.quantive.app.presentation.theme.QuantiveTheme
 
 /**
  * Quantive Main Application Entry Point
@@ -13,6 +13,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Preview
 fun App() {
     QuantiveTheme {
-        QuantiveAppContent()
+        QuantiveApp()
     }
 }

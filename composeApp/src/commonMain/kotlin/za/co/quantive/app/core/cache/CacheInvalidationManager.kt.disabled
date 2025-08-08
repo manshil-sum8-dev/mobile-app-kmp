@@ -1,0 +1,218 @@
+package za.co.quantive.app.core.cache
+
+import za.co.quantive.app.domain.entities.*
+
+/**
+ * Smart cache invalidation based on business operations
+ * Ensures cache consistency while minimizing unnecessary invalidations
+ */
+class CacheInvalidationManager(
+    private val cache: SmartCache
+) {
+    
+    /**
+     * Invoice was created - invalidate related caches
+     */
+    suspend fun onInvoiceCreated(invoice: Invoice) {
+        // Invalidate all invoice lists (they now have new data)
+        cache.invalidatePattern("invoices_list*")
+        cache.invalidatePattern("recent_invoices*")
+        cache.invalidatePattern("drafts_list*")
+        
+        // Invalidate customer-specific caches
+        cache.invalidatePattern("customer_${invoice.customerId}*")
+        
+        // Invalidate dashboard/analytics (revenue metrics changed)
+        cache.invalidatePattern("dashboard*")
+        cache.invalidatePattern("analytics*")
+        
+        // DON'T invalidate: items, suppliers, tax rates (unrelated)
+    }
+    
+    /**
+     * Invoice was updated - targeted invalidation
+     */
+    suspend fun onInvoiceUpdated(invoiceId: String, customerId: String?, statusChange: Boolean = false) {
+        // Invalidate specific invoice
+        cache.invalidate("invoice_$invoiceId")
+        
+        // If status changed, invalidate filtered lists
+        if (statusChange) {
+            cache.invalidatePattern("drafts_list*")
+            cache.invalidatePattern("overdue_list*") 
+            cache.invalidatePattern("paid_list*")
+            cache.invalidatePattern("invoices_list*") // General lists might be filtered by status
+        }
+        
+        // Invalidate customer caches if customer changed
+        customerId?.let {
+            cache.invalidatePattern("customer_${it}*")
+        }
+        
+        // Invalidate analytics (metrics may have changed)
+        cache.invalidatePattern("dashboard*")
+    }
+    
+    /**
+     * Payment was recorded - focused invalidation
+     */
+    suspend fun onPaymentRecorded(invoiceId: String, customerId: String) {
+        // Invalidate specific invoice (payment status changed)
+        cache.invalidate("invoice_$invoiceId")
+        
+        // Invalidate payment-related lists
+        cache.invalidatePattern("overdue_list*") // Might no longer be overdue
+        cache.invalidatePattern("paid_list*") // New payment
+        cache.invalidatePattern("partially_paid*") 
+        
+        // Invalidate customer activity
+        cache.invalidatePattern("customer_${customerId}*")
+        
+        // Invalidate financial analytics
+        cache.invalidatePattern("dashboard*")
+        cache.invalidatePattern("revenue_analytics*")
+        cache.invalidatePattern("payment_analytics*")
+    }
+    
+    /**
+     * Invoice was sent - minimal invalidation
+     */
+    suspend fun onInvoiceSent(invoiceId: String, customerId: String) {
+        // Invalidate specific invoice (status: DRAFT → SENT)
+        cache.invalidate("invoice_$invoiceId")
+        
+        // Invalidate status-based lists
+        cache.invalidatePattern("drafts_list*")
+        cache.invalidatePattern("sent_list*")
+        
+        // Update customer activity
+        cache.invalidatePattern("customer_${customerId}*")
+    }
+    
+    /**
+     * Customer was created/updated - customer-focused invalidation
+     */
+    suspend fun onCustomerChanged(customerId: String, isNew: Boolean = false) {
+        // Invalidate customer lists
+        cache.invalidatePattern("customers_list*")
+        cache.invalidatePattern("customers_search*")
+        
+        // Invalidate specific customer
+        cache.invalidate("customer_$customerId")
+        
+        if (isNew) {
+            // New customer might affect analytics
+            cache.invalidatePattern("customer_analytics*")
+        }
+        
+        // DON'T invalidate: invoices (customer changes don't affect invoice calculations)
+        // DON'T invalidate: items, suppliers, settings (unrelated)
+    }
+    
+    /**
+     * Item was created/updated - item-focused invalidation  
+     */
+    suspend fun onItemChanged(itemId: String, isNew: Boolean = false) {
+        // Invalidate item lists and searches
+        cache.invalidatePattern("items_list*")
+        cache.invalidatePattern("items_search*")
+        cache.invalidatePattern("recent_items*")
+        
+        // Invalidate specific item
+        cache.invalidate("item_$itemId")
+        
+        // DON'T invalidate: invoices, customers (item changes don't affect existing invoices)
+    }
+    
+    /**
+     * Settings/tax rates changed - reference data invalidation
+     */
+    suspend fun onSettingsChanged() {
+        // Invalidate all settings and tax-related caches
+        cache.invalidatePattern("settings*")
+        cache.invalidatePattern("rates*")
+        cache.invalidatePattern("tax*")
+        
+        // These changes might affect future calculations, but not existing invoices
+        // So we DON'T invalidate invoice lists
+    }
+    
+    /**
+     * Categories/tags changed - reference data invalidation
+     */
+    suspend fun onCategoriesChanged() {
+        cache.invalidatePattern("categories*")
+        cache.invalidatePattern("tags*")
+        
+        // Might affect item organization
+        cache.invalidatePattern("items_list*")
+    }
+    
+    /**
+     * User logged out - clear personal caches
+     */
+    suspend fun onUserLogout() {
+        // Clear user-specific caches but keep reference data
+        cache.invalidatePattern("invoices*")
+        cache.invalidatePattern("customers*") 
+        cache.invalidatePattern("items*")
+        cache.invalidatePattern("dashboard*")
+        cache.invalidatePattern("analytics*")
+        
+        // Keep: settings, rates, categories (might be reusable)
+    }
+    
+    /**
+     * Manual cache refresh requested
+     */
+    suspend fun onManualRefresh(feature: String) {
+        when (feature.lowercase()) {
+            "invoices" -> {
+                cache.invalidatePattern("invoices*")
+                cache.invalidatePattern("dashboard*")
+            }
+            "customers" -> {
+                cache.invalidatePattern("customers*")
+            }
+            "items" -> {
+                cache.invalidatePattern("items*")
+                cache.invalidatePattern("recent_items*")
+            }
+            "analytics" -> {
+                cache.invalidatePattern("dashboard*")
+                cache.invalidatePattern("analytics*")
+            }
+            "all" -> {
+                cache.clearAll()
+            }
+        }
+    }
+    
+    /**
+     * Background cleanup of expired entries
+     */
+    suspend fun cleanupExpiredEntries() {
+        // The cache automatically removes expired entries on access
+        // This is mainly for monitoring/stats
+        val stats = cache.getStats()
+        
+        // Log cache performance for monitoring
+        println("Cache Stats: Memory=${stats.totalMemoryEntries}, Persistent=${stats.persistentEntries}")
+    }
+}
+
+/**
+ * Cache invalidation events for reactive invalidation
+ */
+sealed class CacheInvalidationEvent {
+    data class InvoiceCreated(val invoice: Invoice) : CacheInvalidationEvent()
+    data class InvoiceUpdated(val invoiceId: String, val customerId: String?, val statusChange: Boolean) : CacheInvalidationEvent()
+    data class PaymentRecorded(val invoiceId: String, val customerId: String) : CacheInvalidationEvent()
+    data class InvoiceSent(val invoiceId: String, val customerId: String) : CacheInvalidationEvent()
+    data class CustomerChanged(val customerId: String, val isNew: Boolean) : CacheInvalidationEvent()
+    data class ItemChanged(val itemId: String, val isNew: Boolean) : CacheInvalidationEvent()
+    object SettingsChanged : CacheInvalidationEvent()
+    object CategoriesChanged : CacheInvalidationEvent()
+    object UserLogout : CacheInvalidationEvent()
+    data class ManualRefresh(val feature: String) : CacheInvalidationEvent()
+}

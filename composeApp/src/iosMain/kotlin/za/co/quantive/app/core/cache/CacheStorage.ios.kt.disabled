@@ -1,0 +1,108 @@
+package za.co.quantive.app.core.cache
+
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import platform.Foundation.*
+import platform.darwin.NSObject
+
+/**
+ * iOS-specific cache storage using UserDefaults
+ * Provides persistent storage for cache entries across app restarts
+ */
+class IosCacheStorage : CacheStorage {
+    
+    private val userDefaults = NSUserDefaults.standardUserDefaults
+    private val cacheKeyPrefix = "quantive_cache_"
+    
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+    
+    override suspend fun put(key: String, entry: CacheEntry) {
+        val prefKey = "$cacheKeyPrefix$key"
+        val serialized = json.encodeToString(entry)
+        userDefaults.setObject(serialized, forKey = prefKey)
+        userDefaults.synchronize()
+    }
+    
+    override suspend fun get(key: String): CacheEntry? {
+        val prefKey = "$cacheKeyPrefix$key"
+        return try {
+            val serialized = userDefaults.stringForKey(prefKey)
+            if (serialized != null) {
+                json.decodeFromString<CacheEntry>(serialized)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null // Return null for corrupted or missing entries
+        }
+    }
+    
+    override suspend fun remove(key: String) {
+        val prefKey = "$cacheKeyPrefix$key"
+        userDefaults.removeObjectForKey(prefKey)
+        userDefaults.synchronize()
+    }
+    
+    override suspend fun removePattern(pattern: String) {
+        val regex = pattern.replace("*", ".*").toRegex()
+        
+        // Get all keys from UserDefaults
+        val dictionary = userDefaults.dictionaryRepresentation()
+        val keysToRemove = mutableListOf<String>()
+        
+        dictionary.keys.forEach { keyObj ->
+            val key = keyObj.toString()
+            if (key.startsWith(cacheKeyPrefix)) {
+                val cleanKey = key.removePrefix(cacheKeyPrefix)
+                if (regex.matches(cleanKey)) {
+                    keysToRemove.add(key)
+                }
+            }
+        }
+        
+        keysToRemove.forEach { key ->
+            userDefaults.removeObjectForKey(key)
+        }
+        userDefaults.synchronize()
+    }
+    
+    override suspend fun clear() {
+        val dictionary = userDefaults.dictionaryRepresentation()
+        val keysToRemove = mutableListOf<String>()
+        
+        dictionary.keys.forEach { keyObj ->
+            if (keyObj is NSString) {
+                val key = keyObj.toString()
+                if (key.startsWith(cacheKeyPrefix)) {
+                    keysToRemove.add(key)
+                }
+            }
+        }
+        
+        keysToRemove.forEach { key ->
+            userDefaults.removeObjectForKey(key)
+        }
+        userDefaults.synchronize()
+    }
+    
+    override suspend fun size(): Int {
+        val dictionary = userDefaults.dictionaryRepresentation()
+        var count = 0
+        
+        dictionary.keys.forEach { keyObj ->
+            if (keyObj is NSString) {
+                val key = keyObj.toString()
+                if (key.startsWith(cacheKeyPrefix)) {
+                    count++
+                }
+            }
+        }
+        
+        return count
+    }
+}

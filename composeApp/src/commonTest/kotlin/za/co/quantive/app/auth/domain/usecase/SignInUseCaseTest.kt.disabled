@@ -1,0 +1,282 @@
+package za.co.quantive.app.auth.domain.usecase
+
+import kotlinx.coroutines.test.runTest
+import za.co.quantive.app.auth.domain.model.*
+import za.co.quantive.app.auth.domain.repository.AuthRepository
+import za.co.quantive.app.auth.domain.repository.Result
+import za.co.quantive.app.auth.domain.repository.error
+import za.co.quantive.app.auth.domain.repository.success
+import kotlin.test.*
+
+/**
+ * Unit tests for SignInUseCase
+ */
+class SignInUseCaseTest {
+
+    private lateinit var mockAuthRepository: MockAuthRepository
+    private lateinit var signInUseCase: SignInUseCase
+
+    @BeforeTest
+    fun setup() {
+        mockAuthRepository = MockAuthRepository()
+        signInUseCase = SignInUseCase(mockAuthRepository)
+    }
+
+    @Test
+    fun `execute with valid credentials should return success`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "password123"
+        val expectedSession = createTestUserSession()
+        mockAuthRepository.signInResult = success(expectedSession)
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Success)
+        assertEquals(expectedSession, result.value)
+        assertEquals(email.trim(), mockAuthRepository.lastSignInEmail)
+        assertEquals(password, mockAuthRepository.lastSignInPassword)
+    }
+
+    @Test
+    fun `execute with empty email should return validation error`() = runTest {
+        // Given
+        val email = ""
+        val password = "password123"
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("email", error.field)
+    }
+
+    @Test
+    fun `execute with blank email should return validation error`() = runTest {
+        // Given
+        val email = "   "
+        val password = "password123"
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("email", error.field)
+    }
+
+    @Test
+    fun `execute with invalid email should return invalid email error`() = runTest {
+        // Given
+        val email = "invalid-email"
+        val password = "password123"
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Error)
+        assertTrue(result.error is AuthError.InvalidEmail)
+    }
+
+    @Test
+    fun `execute with empty password should return validation error`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = ""
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("password", error.field)
+    }
+
+    @Test
+    fun `execute with short password should return validation error`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "12345" // Less than 6 characters
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("password", error.field)
+    }
+
+    @Test
+    fun `execute with whitespace in email should trim email`() = runTest {
+        // Given
+        val email = "  test@example.com  "
+        val password = "password123"
+        val expectedSession = createTestUserSession()
+        mockAuthRepository.signInResult = success(expectedSession)
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Success)
+        assertEquals("test@example.com", mockAuthRepository.lastSignInEmail)
+    }
+
+    @Test
+    fun `execute with repository error should return error`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "password123"
+        val expectedError = AuthError.InvalidCredentials()
+        mockAuthRepository.signInResult = error(expectedError)
+
+        // When
+        val result = signInUseCase.execute(email, password)
+
+        // Then
+        assertTrue(result is Result.Error)
+        assertEquals(expectedError, result.error)
+    }
+
+    @Test
+    fun `execute with various valid email formats should succeed`() = runTest {
+        val validEmails = listOf(
+            "test@example.com",
+            "user.name@domain.co.za",
+            "user+tag@example.org",
+            "user123@example-domain.com",
+        )
+
+        val expectedSession = createTestUserSession()
+        mockAuthRepository.signInResult = success(expectedSession)
+
+        validEmails.forEach { email ->
+            val result = signInUseCase.execute(email, "password123")
+            assertTrue(result is Result.Success, "Should succeed for email: $email")
+        }
+    }
+
+    @Test
+    fun `execute with various invalid email formats should fail`() = runTest {
+        val invalidEmails = listOf(
+            "invalid",
+            "@domain.com",
+            "user@",
+            "user@domain",
+            "",
+            "user.domain.com",
+        )
+
+        invalidEmails.forEach { email ->
+            val result = signInUseCase.execute(email, "password123")
+            assertTrue(result is Result.Error, "Should fail for email: $email")
+        }
+    }
+
+    private fun createTestUserSession(): UserSession {
+        return UserSession(
+            user = AuthUser(
+                id = "test-user-id",
+                email = "test@example.com",
+                emailVerified = true,
+                createdAt = "2024-01-01T00:00:00Z",
+                updatedAt = "2024-01-01T00:00:00Z",
+            ),
+            tokens = AuthTokens(
+                accessToken = "test-access-token",
+                refreshToken = "test-refresh-token",
+                expiresAt = System.currentTimeMillis() / 1000 + 3600, // 1 hour from now
+            ),
+        )
+    }
+}
+
+/**
+ * Mock implementation of AuthRepository for testing
+ */
+class MockAuthRepository : AuthRepository {
+    var signInResult: Result<UserSession, AuthError> = error(AuthError.UnknownError())
+    var signUpResult: Result<UserSession, AuthError> = error(AuthError.UnknownError())
+    var signOutResult: Result<Unit, AuthError> = success(Unit)
+    var refreshSessionResult: Result<UserSession, AuthError> = error(AuthError.UnknownError())
+    var currentSession: UserSession? = null
+    var sendPasswordResetResult: Result<Unit, AuthError> = success(Unit)
+
+    var lastSignInEmail: String? = null
+    var lastSignInPassword: String? = null
+    var lastSignUpEmail: String? = null
+    var lastSignUpPassword: String? = null
+
+    override suspend fun signUp(email: String, password: String): Result<UserSession, AuthError> {
+        lastSignUpEmail = email
+        lastSignUpPassword = password
+        return signUpResult
+    }
+
+    override suspend fun signIn(email: String, password: String): Result<UserSession, AuthError> {
+        lastSignInEmail = email
+        lastSignInPassword = password
+        return signInResult
+    }
+
+    override suspend fun signOut(): Result<Unit, AuthError> {
+        currentSession = null
+        return signOutResult
+    }
+
+    override suspend fun refreshSession(): Result<UserSession, AuthError> {
+        return refreshSessionResult
+    }
+
+    override suspend fun getCurrentSession(): UserSession? {
+        return currentSession
+    }
+
+    override suspend fun isAuthenticated(): Boolean {
+        return currentSession != null
+    }
+
+    override suspend fun getCurrentUser(): AuthUser? {
+        return currentSession?.user
+    }
+
+    override suspend fun sendPasswordResetEmail(email: String): Result<Unit, AuthError> {
+        return sendPasswordResetResult
+    }
+
+    override suspend fun resetPassword(token: String, newPassword: String): Result<Unit, AuthError> {
+        return success(Unit)
+    }
+
+    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit, AuthError> {
+        return success(Unit)
+    }
+
+    override suspend fun sendEmailVerification(email: String?): Result<Unit, AuthError> {
+        return success(Unit)
+    }
+
+    override suspend fun verifyEmail(token: String): Result<Unit, AuthError> {
+        return success(Unit)
+    }
+
+    override suspend fun updateProfile(updates: Map<String, Any>): Result<AuthUser, AuthError> {
+        return error(AuthError.UnknownError())
+    }
+
+    override suspend fun deleteAccount(): Result<Unit, AuthError> {
+        return success(Unit)
+    }
+}

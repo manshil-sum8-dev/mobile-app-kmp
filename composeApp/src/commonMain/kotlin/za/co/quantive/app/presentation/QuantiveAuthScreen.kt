@@ -1,19 +1,40 @@
 package za.co.quantive.app.presentation
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import kotlinx.coroutines.launch
 import za.co.quantive.app.app.AppServices
 import za.co.quantive.app.auth.Session
-import za.co.quantive.app.presentation.components.*
+import za.co.quantive.app.presentation.components.QuantiveCard
+import za.co.quantive.app.presentation.components.QuantiveEmptyState
+import za.co.quantive.app.presentation.components.QuantivePrimaryButton
+import za.co.quantive.app.presentation.components.QuantiveSectionHeader
+import za.co.quantive.app.presentation.components.QuantiveTextButton
+import za.co.quantive.app.presentation.components.QuantiveTextField
 import za.co.quantive.app.presentation.theme.QuantiveDesignTokens
-import kotlinx.coroutines.launch
 
 /**
  * Quantive Authentication Screen
@@ -52,7 +73,7 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
 
     fun validateInputs(): Boolean {
         var isValid = true
-        
+
         // Email validation
         emailError = when {
             email.isBlank() -> {
@@ -65,7 +86,7 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
             }
             else -> null
         }
-        
+
         // Password validation
         passwordError = when {
             password.isBlank() -> {
@@ -82,7 +103,7 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
             }
             else -> null
         }
-        
+
         return isValid
     }
 
@@ -91,16 +112,16 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
             .fillMaxSize()
             .padding(QuantiveDesignTokens.Spacing.Large),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         // Header
         Text(
             text = "Quantive",
             style = MaterialTheme.typography.displayMedium,
             color = MaterialTheme.colorScheme.primary,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
-        
+
         Text(
             text = "Professional Invoicing & Business Management",
             style = MaterialTheme.typography.bodyLarge,
@@ -108,18 +129,18 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(
                 top = QuantiveDesignTokens.Spacing.Small,
-                bottom = QuantiveDesignTokens.Spacing.XXLarge
-            )
+                bottom = QuantiveDesignTokens.Spacing.XXLarge,
+            ),
         )
 
         // Toggle between Sign In / Sign Up
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.Center,
         ) {
             QuantiveTextButton(
                 text = "Sign In",
-                onClick = { 
+                onClick = {
                     isSignUp = false
                     errorMessage = null
                     emailError = null
@@ -128,13 +149,13 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
                 modifier = Modifier
                     .weight(1f)
                     .then(
-                        if (!isSignUp) Modifier else Modifier
-                    )
+                        if (!isSignUp) Modifier else Modifier,
+                    ),
             )
-            
+
             QuantiveTextButton(
                 text = "Sign Up",
-                onClick = { 
+                onClick = {
                     isSignUp = true
                     errorMessage = null
                     emailError = null
@@ -143,17 +164,17 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
                 modifier = Modifier
                     .weight(1f)
                     .then(
-                        if (isSignUp) Modifier else Modifier
-                    )
+                        if (isSignUp) Modifier else Modifier,
+                    ),
             )
         }
-        
+
         Spacer(modifier = Modifier.height(QuantiveDesignTokens.Spacing.Large))
 
         // Email Input
         QuantiveTextField(
             value = email,
-            onValueChange = { 
+            onValueChange = {
                 email = it
                 if (emailError != null) emailError = null
             },
@@ -162,20 +183,20 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Email,
-                    contentDescription = null
+                    contentDescription = null,
                 )
             },
             error = emailError,
             enabled = !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = QuantiveDesignTokens.Spacing.Medium)
+                .padding(bottom = QuantiveDesignTokens.Spacing.Medium),
         )
 
         // Password Input
         QuantiveTextField(
             value = password,
-            onValueChange = { 
+            onValueChange = {
                 password = it
                 if (passwordError != null) passwordError = null
                 // Show real-time password strength feedback for sign up
@@ -188,7 +209,7 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Lock,
-                    contentDescription = null
+                    contentDescription = null,
                 )
             },
             error = passwordError,
@@ -196,7 +217,7 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
             isPassword = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = if (isSignUp) QuantiveDesignTokens.Spacing.Medium else QuantiveDesignTokens.Spacing.Large)
+                .padding(bottom = if (isSignUp) QuantiveDesignTokens.Spacing.Medium else QuantiveDesignTokens.Spacing.Large),
         )
 
         // Confirm Password Input (Sign Up only)
@@ -209,14 +230,14 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = null
+                        contentDescription = null,
                     )
                 },
                 enabled = !isLoading,
                 isPassword = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = QuantiveDesignTokens.Spacing.Large)
+                    .padding(bottom = QuantiveDesignTokens.Spacing.Large),
             )
         }
 
@@ -227,7 +248,7 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Medium)
+                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Medium),
             )
         }
 
@@ -240,13 +261,13 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
                         try {
                             isLoading = true
                             errorMessage = null
-                            
+
                             val session = if (isSignUp) {
                                 AppServices.auth.signUp(email, password)
                             } else {
                                 AppServices.auth.signIn(email, password)
                             }
-                            
+
                             AppServices.setSession(session)
                             onSignUpSuccess(session)
                         } catch (e: Exception) {
@@ -258,10 +279,10 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
                 }
             },
             loading = isLoading,
-            enabled = email.isNotBlank() && password.isNotBlank() && 
-                     (!isSignUp || confirmPassword.isNotBlank()) &&
-                     emailError == null && (passwordError == null || !isSignUp),
-            modifier = Modifier.fillMaxWidth()
+            enabled = email.isNotBlank() && password.isNotBlank() &&
+                (!isSignUp || confirmPassword.isNotBlank()) &&
+                emailError == null && (passwordError == null || !isSignUp),
+            modifier = Modifier.fillMaxWidth(),
         )
 
         // Additional Info for Sign Up
@@ -271,7 +292,7 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Large)
+                modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Large),
             )
         }
     }
@@ -283,18 +304,18 @@ fun QuantiveAuthScreen(onSignUpSuccess: (Session) -> Unit) {
 @Composable
 fun QuantiveErrorScreen(
     error: String,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         QuantiveEmptyState(
             title = "Something went wrong",
             subtitle = error,
             icon = Icons.Default.Warning,
             actionText = "Try Again",
-            onActionClick = onRetry
+            onActionClick = onRetry,
         )
     }
 }
@@ -305,7 +326,7 @@ fun QuantiveErrorScreen(
 @Composable
 fun QuantiveOnboardingFlow(onOnboardingComplete: () -> Unit) {
     var currentStep by remember { mutableStateOf(0) }
-    
+
     when (currentStep) {
         0 -> QuantiveWelcomeScreen(onNext = { currentStep = 1 })
         1 -> QuantiveBusinessSetupScreen(onNext = { currentStep = 2 })
@@ -321,50 +342,50 @@ fun QuantiveWelcomeScreen(onNext: () -> Unit) {
             .fillMaxSize()
             .padding(QuantiveDesignTokens.Spacing.Large),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(
             text = "🎉",
             style = MaterialTheme.typography.displayLarge,
-            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Large)
+            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Large),
         )
-        
+
         QuantiveSectionHeader(
             title = "Welcome to Quantive!",
             subtitle = "Your professional invoicing and business management platform",
-            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.XXLarge)
+            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.XXLarge),
         )
-        
+
         QuantiveCard(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
                 text = "✓ Create professional invoices",
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Small)
+                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Small),
             )
             Text(
                 text = "✓ Manage customers and suppliers",
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Small)
+                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Small),
             )
             Text(
                 text = "✓ Track payments and analytics",
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Small)
+                modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Small),
             )
             Text(
                 text = "✓ South African tax compliance",
-                style = MaterialTheme.typography.bodyLarge
+                style = MaterialTheme.typography.bodyLarge,
             )
         }
-        
+
         Spacer(modifier = Modifier.weight(1f))
-        
+
         QuantivePrimaryButton(
             text = "Get Started",
             onClick = onNext,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -374,19 +395,19 @@ fun QuantiveBusinessSetupScreen(onNext: () -> Unit) {
     var businessName by remember { mutableStateOf("") }
     var ownerName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(QuantiveDesignTokens.Spacing.Large),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         QuantiveSectionHeader(
             title = "Set Up Your Business",
             subtitle = "Tell us about your business to personalize your experience",
-            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.XXLarge)
+            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.XXLarge),
         )
-        
+
         QuantiveTextField(
             value = businessName,
             onValueChange = { businessName = it },
@@ -394,9 +415,9 @@ fun QuantiveBusinessSetupScreen(onNext: () -> Unit) {
             placeholder = "Your Business Name",
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = QuantiveDesignTokens.Spacing.Medium)
+                .padding(bottom = QuantiveDesignTokens.Spacing.Medium),
         )
-        
+
         QuantiveTextField(
             value = ownerName,
             onValueChange = { ownerName = it },
@@ -404,11 +425,11 @@ fun QuantiveBusinessSetupScreen(onNext: () -> Unit) {
             placeholder = "Business Owner Name",
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = QuantiveDesignTokens.Spacing.Large)
+                .padding(bottom = QuantiveDesignTokens.Spacing.Large),
         )
-        
+
         Spacer(modifier = Modifier.weight(1f))
-        
+
         QuantivePrimaryButton(
             text = "Continue",
             onClick = {
@@ -416,13 +437,13 @@ fun QuantiveBusinessSetupScreen(onNext: () -> Unit) {
                     // Save business profile
                     za.co.quantive.app.security.SecureStore.saveUserProfile(
                         ownerName.ifBlank { "Business Owner" },
-                        businessName.ifBlank { "My Business" }
+                        businessName.ifBlank { "My Business" },
                     )
                     onNext()
                 }
             },
             enabled = businessName.isNotBlank() || ownerName.isNotBlank(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -434,24 +455,24 @@ fun QuantiveOnboardingCompleteScreen(onComplete: () -> Unit) {
             .fillMaxSize()
             .padding(QuantiveDesignTokens.Spacing.Large),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(
             text = "🚀",
             style = MaterialTheme.typography.displayLarge,
-            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Large)
+            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.Large),
         )
-        
+
         QuantiveSectionHeader(
             title = "You're all set!",
             subtitle = "Ready to start managing your business with Quantive",
-            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.XXLarge)
+            modifier = Modifier.padding(bottom = QuantiveDesignTokens.Spacing.XXLarge),
         )
-        
+
         QuantivePrimaryButton(
             text = "Enter Quantive",
             onClick = onComplete,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

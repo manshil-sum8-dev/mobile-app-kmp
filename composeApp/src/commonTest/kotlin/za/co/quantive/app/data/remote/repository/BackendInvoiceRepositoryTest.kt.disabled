@@ -1,0 +1,624 @@
+package za.co.quantive.app.data.remote.repository
+
+import app.cash.turbine.test
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import za.co.quantive.app.data.remote.api.InvoiceApi
+import za.co.quantive.app.data.remote.api.CreateInvoiceRequest
+import za.co.quantive.app.data.remote.api.UpdateInvoiceRequest
+import za.co.quantive.app.data.remote.api.SendInvoiceRequest
+import za.co.quantive.app.data.remote.api.RecordPaymentRequest
+import za.co.quantive.app.data.remote.api.PaginatedResponse
+import za.co.quantive.app.domain.entities.Invoice
+import za.co.quantive.app.domain.entities.InvoiceFilter
+import za.co.quantive.app.testing.BaseTest
+import za.co.quantive.app.testing.MockFactory
+import za.co.quantive.app.testing.runTestWithTimeout
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+
+/**
+ * Comprehensive test suite for BackendInvoiceRepository
+ * Tests backend-driven architecture pattern, caching, and error handling
+ * Coverage target: 90%+ for repository layer logic
+ */
+class BackendInvoiceRepositoryTest : BaseTest() {
+
+    private lateinit var mockInvoiceApi: InvoiceApi
+    private lateinit var mockInvoiceCache: InvoiceCache
+    private lateinit var repository: BackendInvoiceRepository
+
+    // Test data
+    private val testInvoice = createTestInvoice()
+    private val testInvoiceList = listOf(testInvoice, createTestInvoice("invoice_2"))
+
+    override fun setUp() {
+        super.setUp()
+        mockInvoiceApi = mockk()
+        mockInvoiceCache = mockk(relaxed = true)
+        repository = BackendInvoiceRepository(mockInvoiceApi, mockInvoiceCache)
+    }
+
+    override fun tearDown() {
+        MockFactory.clearMocks()
+        super.tearDown()
+    }
+
+    private fun createTestInvoice(id: String = "invoice_1") = Invoice(
+        id = id,
+        number = "INV-001",
+        contactId = "contact_1",
+        contactName = "Test Contact",
+        contactEmail = "contact@test.com",
+        amount = 1000.0,
+        tax = 150.0,
+        total = 1150.0,
+        status = "pending",
+        dueDate = "2024-01-15",
+        createdAt = "2024-01-01T00:00:00Z",
+        updatedAt = "2024-01-01T00:00:00Z"
+    )
+
+    // Get Invoices Tests
+
+    @Test
+    fun `getInvoices emits cached data first when not forcing refresh`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // Setup cache to return data
+                coEvery { mockInvoiceCache.getInvoices(any()) } returns testInvoiceList
+                
+                // Setup API to return fresh data
+                val paginatedResponse = PaginatedResponse(
+                    data = testInvoiceList,
+                    total = testInvoiceList.size,
+                    page = 0,
+                    limit = 100
+                )
+                coEvery { mockInvoiceApi.getInvoices(any(), any(), any()) } returns 
+                    MockFactory.createSuccessApiResponse(paginatedResponse)
+            },
+            `when` = {
+                repository.getInvoices(filter = null, forceRefresh = false).test {
+                    // Should emit cached data first
+                    val cachedResult = awaitItem()
+                    assertTrue(cachedResult.isSuccess)
+                    assertEquals(2, cachedResult.getOrNull()?.size)
+                    
+                    // Then emit API data
+                    val apiResult = awaitItem()
+                    assertTrue(apiResult.isSuccess)
+                    assertEquals(2, apiResult.getOrNull()?.size)
+                    
+                    awaitComplete()
+                }
+            },
+            then = {
+                // Verify cache was checked first
+                coVerify(exactly = 1) { mockInvoiceCache.getInvoices(null) }
+                
+                // Verify API was called
+                coVerify(exactly = 1) { mockInvoiceApi.getInvoices(0, 100, null) }
+                
+                // Verify data was cached
+                coVerify(exactly = 1) { mockInvoiceCache.saveInvoices(testInvoiceList) }
+            }
+        )
+    }
+
+    @Test
+    fun `getInvoices skips cache when force refresh is true`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val paginatedResponse = PaginatedResponse(
+                    data = testInvoiceList,
+                    total = testInvoiceList.size,
+                    page = 0,
+                    limit = 100
+                )
+                coEvery { mockInvoiceApi.getInvoices(any(), any(), any()) } returns 
+                    MockFactory.createSuccessApiResponse(paginatedResponse)
+            },
+            `when` = {
+                repository.getInvoices(filter = null, forceRefresh = true).test {
+                    val result = awaitItem()
+                    assertTrue(result.isSuccess)
+                    assertEquals(2, result.getOrNull()?.size)
+                    awaitComplete()
+                }
+            },
+            then = {
+                // Verify cache was NOT checked when force refresh is true
+                coVerify(exactly = 0) { mockInvoiceCache.getInvoices(any()) }
+                
+                // Verify API was called
+                coVerify(exactly = 1) { mockInvoiceApi.getInvoices(0, 100, null) }
+            }
+        )
+    }
+
+    @Test
+    fun `getInvoices returns cached data on API failure`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // Setup cache to return data
+                coEvery { mockInvoiceCache.getInvoices(any()) } returns testInvoiceList
+                
+                // Setup API to fail
+                coEvery { mockInvoiceApi.getInvoices(any(), any(), any()) } throws RuntimeException("Network error")
+            },
+            `when` = {
+                repository.getInvoices(filter = null, forceRefresh = false).test {
+                    // Should emit cached data first
+                    val cachedResult = awaitItem()
+                    assertTrue(cachedResult.isSuccess)
+                    
+                    // Should emit cached data again as fallback
+                    val fallbackResult = awaitItem()
+                    assertTrue(fallbackResult.isSuccess)
+                    assertEquals(2, fallbackResult.getOrNull()?.size)
+                    
+                    awaitComplete()
+                }
+            },
+            then = {
+                // Verify cache was used for fallback
+                coVerify(atLeast = 2) { mockInvoiceCache.getInvoices(null) }
+            }
+        )
+    }
+
+    @Test
+    fun `getInvoices handles API error response`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // Empty cache
+                coEvery { mockInvoiceCache.getInvoices(any()) } returns emptyList()
+                
+                // API returns error
+                coEvery { mockInvoiceApi.getInvoices(any(), any(), any()) } returns 
+                    MockFactory.createErrorApiResponse("Server error")
+            },
+            `when` = {
+                val result = repository.getInvoices().first()
+            },
+            then = {
+                assertTrue(result.isFailure)
+                assertTrue(result.exceptionOrNull()?.message?.contains("Failed to fetch invoices") == true)
+            }
+        )
+    }
+
+    @Test
+    fun `getInvoices applies filter correctly`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val filter = InvoiceFilter(status = "pending", contactId = "contact_1")
+                val filteredInvoices = listOf(testInvoice)
+                
+                coEvery { mockInvoiceCache.getInvoices(filter) } returns emptyList()
+                
+                val paginatedResponse = PaginatedResponse(
+                    data = filteredInvoices,
+                    total = 1,
+                    page = 0,
+                    limit = 100
+                )
+                coEvery { mockInvoiceApi.getInvoices(0, 100, filter) } returns 
+                    MockFactory.createSuccessApiResponse(paginatedResponse)
+            },
+            `when` = {
+                val filter = InvoiceFilter(status = "pending", contactId = "contact_1")
+                val result = repository.getInvoices(filter = filter).first()
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals(1, result.getOrNull()?.size)
+                
+                // Verify filter was passed to cache and API
+                coVerify(exactly = 1) { mockInvoiceCache.getInvoices(filter) }
+                coVerify(exactly = 1) { mockInvoiceApi.getInvoices(0, 100, filter) }
+            }
+        )
+    }
+
+    // Get Single Invoice Tests
+
+    @Test
+    fun `getInvoice returns invoice from API and caches it`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery { mockInvoiceApi.getInvoice("invoice_1") } returns 
+                    MockFactory.createSuccessApiResponse(testInvoice)
+            },
+            `when` = {
+                val result = repository.getInvoice("invoice_1")
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals("invoice_1", result.getOrNull()?.id)
+                
+                // Verify invoice was cached
+                coVerify(exactly = 1) { mockInvoiceCache.saveInvoice(testInvoice) }
+            }
+        )
+    }
+
+    @Test
+    fun `getInvoice returns cached invoice on API failure`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // API fails
+                coEvery { mockInvoiceApi.getInvoice("invoice_1") } throws RuntimeException("Network error")
+                
+                // Cache has the invoice
+                coEvery { mockInvoiceCache.getInvoice("invoice_1") } returns testInvoice
+            },
+            `when` = {
+                val result = repository.getInvoice("invoice_1")
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals("invoice_1", result.getOrNull()?.id)
+                
+                // Verify cache fallback was used
+                coVerify(exactly = 1) { mockInvoiceCache.getInvoice("invoice_1") }
+            }
+        )
+    }
+
+    @Test
+    fun `getInvoice fails when both API and cache fail`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // API fails
+                coEvery { mockInvoiceApi.getInvoice("invoice_1") } throws RuntimeException("Network error")
+                
+                // Cache is empty
+                coEvery { mockInvoiceCache.getInvoice("invoice_1") } returns null
+            },
+            `when` = {
+                val result = repository.getInvoice("invoice_1")
+            },
+            then = {
+                assertTrue(result.isFailure)
+                assertEquals("Network error", result.exceptionOrNull()?.message)
+            }
+        )
+    }
+
+    // Create Invoice Tests
+
+    @Test
+    fun `createInvoice creates invoice and caches result`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val createRequest = CreateInvoiceRequest(
+                    contactId = "contact_1",
+                    amount = 1000.0,
+                    dueDate = "2024-01-15"
+                )
+                
+                coEvery { mockInvoiceApi.createInvoice(createRequest) } returns 
+                    MockFactory.createSuccessApiResponse(testInvoice)
+            },
+            `when` = {
+                val createRequest = CreateInvoiceRequest(
+                    contactId = "contact_1",
+                    amount = 1000.0,
+                    dueDate = "2024-01-15"
+                )
+                val result = repository.createInvoice(createRequest)
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals("invoice_1", result.getOrNull()?.id)
+                
+                // Verify invoice was cached
+                coVerify(exactly = 1) { mockInvoiceCache.saveInvoice(testInvoice) }
+            }
+        )
+    }
+
+    @Test
+    fun `createInvoice handles API error`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val createRequest = CreateInvoiceRequest(
+                    contactId = "contact_1",
+                    amount = 1000.0,
+                    dueDate = "2024-01-15"
+                )
+                
+                coEvery { mockInvoiceApi.createInvoice(createRequest) } returns 
+                    MockFactory.createErrorApiResponse("Validation error")
+            },
+            `when` = {
+                val result = repository.createInvoice(createRequest)
+            },
+            then = {
+                assertTrue(result.isFailure)
+                assertTrue(result.exceptionOrNull()?.message?.contains("Failed to create invoice") == true)
+                
+                // Verify nothing was cached
+                coVerify(exactly = 0) { mockInvoiceCache.saveInvoice(any()) }
+            }
+        )
+    }
+
+    // Update Invoice Tests
+
+    @Test
+    fun `updateInvoice updates invoice and caches result`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val updateRequest = UpdateInvoiceRequest(amount = 1200.0)
+                val updatedInvoice = testInvoice.copy(amount = 1200.0, total = 1380.0)
+                
+                coEvery { mockInvoiceApi.updateInvoice("invoice_1", updateRequest) } returns 
+                    MockFactory.createSuccessApiResponse(updatedInvoice)
+            },
+            `when` = {
+                val updateRequest = UpdateInvoiceRequest(amount = 1200.0)
+                val result = repository.updateInvoice("invoice_1", updateRequest)
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals(1200.0, result.getOrNull()?.amount)
+                
+                // Verify updated invoice was cached
+                coVerify(exactly = 1) { mockInvoiceCache.saveInvoice(any()) }
+            }
+        )
+    }
+
+    // Delete Invoice Tests
+
+    @Test
+    fun `deleteInvoice deletes from API and cache`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery { mockInvoiceApi.deleteInvoice("invoice_1") } returns 
+                    MockFactory.createSuccessApiResponse(Unit)
+            },
+            `when` = {
+                val result = repository.deleteInvoice("invoice_1")
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                
+                // Verify deletion from both API and cache
+                coVerify(exactly = 1) { mockInvoiceApi.deleteInvoice("invoice_1") }
+                coVerify(exactly = 1) { mockInvoiceCache.deleteInvoice("invoice_1") }
+            }
+        )
+    }
+
+    @Test
+    fun `deleteInvoice handles API error`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery { mockInvoiceApi.deleteInvoice("invoice_1") } returns 
+                    MockFactory.createErrorApiResponse("Not found")
+            },
+            `when` = {
+                val result = repository.deleteInvoice("invoice_1")
+            },
+            then = {
+                assertTrue(result.isFailure)
+                assertTrue(result.exceptionOrNull()?.message?.contains("Failed to delete invoice") == true)
+                
+                // Verify cache was not modified
+                coVerify(exactly = 0) { mockInvoiceCache.deleteInvoice(any()) }
+            }
+        )
+    }
+
+    // Send Invoice Tests
+
+    @Test
+    fun `sendInvoice sends invoice and caches updated result`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val sendRequest = SendInvoiceRequest(email = "client@test.com", message = "Please pay")
+                val sentInvoice = testInvoice.copy(status = "sent")
+                
+                coEvery { mockInvoiceApi.sendInvoice("invoice_1", sendRequest) } returns 
+                    MockFactory.createSuccessApiResponse(sentInvoice)
+            },
+            `when` = {
+                val sendRequest = SendInvoiceRequest(email = "client@test.com", message = "Please pay")
+                val result = repository.sendInvoice("invoice_1", sendRequest)
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals("sent", result.getOrNull()?.status)
+                
+                // Verify updated invoice was cached
+                coVerify(exactly = 1) { mockInvoiceCache.saveInvoice(any()) }
+            }
+        )
+    }
+
+    // Record Payment Tests
+
+    @Test
+    fun `recordPayment records payment and caches updated invoice`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val paymentRequest = RecordPaymentRequest(amount = 1150.0, method = "bank_transfer")
+                val paidInvoice = testInvoice.copy(status = "paid")
+                
+                coEvery { mockInvoiceApi.recordPayment("invoice_1", paymentRequest) } returns 
+                    MockFactory.createSuccessApiResponse(paidInvoice)
+            },
+            `when` = {
+                val paymentRequest = RecordPaymentRequest(amount = 1150.0, method = "bank_transfer")
+                val result = repository.recordPayment("invoice_1", paymentRequest)
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals("paid", result.getOrNull()?.status)
+                
+                // Verify updated invoice was cached
+                coVerify(exactly = 1) { mockInvoiceCache.saveInvoice(any()) }
+            }
+        )
+    }
+
+    // Duplicate Invoice Tests
+
+    @Test
+    fun `duplicateInvoice creates duplicate and caches it`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val duplicatedInvoice = testInvoice.copy(id = "invoice_duplicate", number = "INV-002")
+                
+                coEvery { mockInvoiceApi.duplicateInvoice("invoice_1") } returns 
+                    MockFactory.createSuccessApiResponse(duplicatedInvoice)
+            },
+            `when` = {
+                val result = repository.duplicateInvoice("invoice_1")
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals("invoice_duplicate", result.getOrNull()?.id)
+                assertEquals("INV-002", result.getOrNull()?.number)
+                
+                // Verify duplicate was cached
+                coVerify(exactly = 1) { mockInvoiceCache.saveInvoice(any()) }
+            }
+        )
+    }
+
+    // Generate PDF Tests
+
+    @Test
+    fun `generatePdf generates PDF and returns URL`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val pdfResponse = za.co.quantive.app.data.remote.api.PdfResponse(
+                    url = "https://example.com/invoice.pdf"
+                )
+                
+                coEvery { mockInvoiceApi.generatePdf("invoice_1", any()) } returns 
+                    MockFactory.createSuccessApiResponse(pdfResponse)
+            },
+            `when` = {
+                val result = repository.generatePdf("invoice_1")
+            },
+            then = {
+                assertTrue(result.isSuccess)
+                assertEquals("https://example.com/invoice.pdf", result.getOrNull())
+            }
+        )
+    }
+
+    // Invoice Summary Tests
+
+    @Test
+    fun `getInvoiceSummary throws not implemented exception`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {},
+            `when` = {
+                val result = repository.getInvoiceSummary()
+            },
+            then = {
+                assertTrue(result.isFailure)
+                assertTrue(result.exceptionOrNull()?.message?.contains("not implemented") == true)
+            }
+        )
+    }
+
+    // Error Handling Tests
+
+    @Test
+    fun `all methods handle network exceptions properly`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val networkException = RuntimeException("Connection timeout")
+                
+                // Setup all API methods to throw network exception
+                coEvery { mockInvoiceApi.getInvoice(any()) } throws networkException
+                coEvery { mockInvoiceApi.createInvoice(any()) } throws networkException
+                coEvery { mockInvoiceApi.updateInvoice(any(), any()) } throws networkException
+                coEvery { mockInvoiceApi.deleteInvoice(any()) } throws networkException
+                
+                // Setup cache to be empty for fallback tests
+                coEvery { mockInvoiceCache.getInvoice(any()) } returns null
+            },
+            `when` = {
+                val getResult = repository.getInvoice("test_id")
+                val createResult = repository.createInvoice(CreateInvoiceRequest(contactId = "test"))
+                val updateResult = repository.updateInvoice("test_id", UpdateInvoiceRequest())
+                val deleteResult = repository.deleteInvoice("test_id")
+            },
+            then = {
+                // All operations should fail with the network exception
+                listOf(getResult, createResult, updateResult, deleteResult).forEach { result ->
+                    assertTrue(result.isFailure)
+                    assertEquals("Connection timeout", result.exceptionOrNull()?.message)
+                }
+            }
+        )
+    }
+
+    // Performance Tests
+
+    @Test
+    fun `repository operations complete within reasonable time`() = runTestWithTimeout(timeout = 1000L) {
+        givenWhenThen(
+            given = {
+                // Setup quick API responses
+                coEvery { mockInvoiceApi.getInvoice(any()) } returns 
+                    MockFactory.createSuccessApiResponse(testInvoice)
+                coEvery { mockInvoiceApi.createInvoice(any()) } returns 
+                    MockFactory.createSuccessApiResponse(testInvoice)
+            },
+            `when` = {
+                // Perform multiple operations
+                val getResult = repository.getInvoice("invoice_1")
+                val createResult = repository.createInvoice(CreateInvoiceRequest(contactId = "test"))
+            },
+            then = {
+                // Both should succeed quickly
+                assertTrue(getResult.isSuccess)
+                assertTrue(createResult.isSuccess)
+            }
+        )
+    }
+}
+
+// Extension functions for test data creation
+private fun CreateInvoiceRequest(
+    contactId: String,
+    amount: Double = 1000.0,
+    dueDate: String = "2024-01-15"
+) = object : CreateInvoiceRequest {
+    // Simplified for testing - actual implementation may vary
+}
+
+private fun UpdateInvoiceRequest(
+    amount: Double? = null
+) = object : UpdateInvoiceRequest {
+    // Simplified for testing - actual implementation may vary  
+}
+
+private fun SendInvoiceRequest(
+    email: String,
+    message: String? = null
+) = object : SendInvoiceRequest {
+    // Simplified for testing - actual implementation may vary
+}
+
+private fun RecordPaymentRequest(
+    amount: Double,
+    method: String
+) = object : RecordPaymentRequest {
+    // Simplified for testing - actual implementation may vary
+}

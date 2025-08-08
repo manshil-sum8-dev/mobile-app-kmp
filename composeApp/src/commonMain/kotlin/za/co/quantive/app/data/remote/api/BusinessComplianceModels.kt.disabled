@@ -1,0 +1,73 @@
+package za.co.quantive.app.data.remote.api
+
+import kotlinx.serialization.Serializable
+import za.co.quantive.app.domain.entities.DateRange
+
+// === BUSINESS COMPLIANCE RPC MODELS ===
+
+@Serializable
+data class ComplianceReportRequest(
+    val businessId: String,
+    val reportType: ComplianceReportType,
+    val dateRange: DateRange? = null,
+    val includeDetails: Boolean = true
+)
+
+@Serializable
+data class ComplianceReportResponse(
+    val reportUrl: String,
+    val filename: String,
+    val complianceScore: Double,
+    val expiresAt: String
+)
+
+@Serializable
+data class BusinessAuditReport(
+    val overallScore: Double,
+    val taxComplianceScore: Double,
+    val dataPrivacyScore: Double,
+    val recommendations: List<ComplianceRecommendation>,
+    val criticalIssues: List<ComplianceIssue>,
+    val auditTimestamp: String
+)
+
+@Serializable
+data class ComplianceRecommendation(
+    val category: ComplianceCategory,
+    val priority: CompliancePriority,
+    val description: String,
+    val actionRequired: String
+)
+
+@Serializable
+data class ComplianceIssue(
+    val category: ComplianceCategory,
+    val severity: ComplianceSeverity,
+    val description: String,
+    val resolution: String
+)
+
+@Serializable
+data class TaxComplianceStatus(
+    val isCompliant: Boolean,
+    val vatRegistered: Boolean,
+    val taxNumber: String?,
+    val lastValidated: String,
+    val issues: List<ComplianceIssue>
+)
+
+enum class ComplianceReportType {
+    TAX_COMPLIANCE, DATA_PRIVACY, FULL_AUDIT, SARS_INTEGRATION
+}
+
+enum class ComplianceCategory {
+    TAX, PRIVACY, SECURITY, REPORTING, DOCUMENTATION
+}
+
+enum class CompliancePriority {
+    LOW, MEDIUM, HIGH, CRITICAL
+}
+
+enum class ComplianceSeverity {
+    INFO, WARNING, ERROR, CRITICAL
+}

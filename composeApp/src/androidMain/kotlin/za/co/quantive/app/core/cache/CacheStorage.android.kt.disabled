@@ -1,0 +1,71 @@
+package za.co.quantive.app.core.cache
+
+import android.content.Context
+import android.content.SharedPreferences
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+
+/**
+ * Android-specific cache storage using SharedPreferences
+ * Simple persistent storage for cache entries across app restarts
+ */
+class AndroidCacheStorage(
+    private val context: Context
+) : CacheStorage {
+    
+    private val prefs: SharedPreferences = context.getSharedPreferences(
+        "quantive_cache", 
+        Context.MODE_PRIVATE
+    )
+    
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+    
+    override suspend fun put(key: String, entry: CacheEntry) {
+        val serialized = json.encodeToString(entry)
+        prefs.edit().putString(key, serialized).apply()
+    }
+    
+    override suspend fun get(key: String): CacheEntry? {
+        return try {
+            val serialized = prefs.getString(key, null)
+            if (serialized != null) {
+                json.decodeFromString<CacheEntry>(serialized)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null // Return null for corrupted or missing entries
+        }
+    }
+    
+    override suspend fun remove(key: String) {
+        prefs.edit().remove(key).apply()
+    }
+    
+    override suspend fun removePattern(pattern: String) {
+        val regex = pattern.replace("*", ".*").toRegex()
+        val editor = prefs.edit()
+        
+        val keysToRemove = prefs.all.keys.filter { key ->
+            regex.matches(key)
+        }
+        
+        keysToRemove.forEach { key ->
+            editor.remove(key)
+        }
+        
+        editor.apply()
+    }
+    
+    override suspend fun clear() {
+        prefs.edit().clear().apply()
+    }
+    
+    override suspend fun size(): Int {
+        return prefs.all.size
+    }
+}

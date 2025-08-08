@@ -1,6 +1,9 @@
 package za.co.quantive.app.domain.entities
 
 import kotlinx.serialization.Serializable
+import za.co.quantive.app.domain.contact.BankingDetails
+import za.co.quantive.app.domain.contact.ContactType
+import za.co.quantive.app.domain.contact.TaxDetails
 
 /**
  * ⚠️ Business Contact entity - Backend Driven
@@ -26,7 +29,7 @@ data class BusinessContact(
     val createdAt: String,
     val updatedAt: String,
     val lastInteractionDate: String? = null,
-    
+
     // Business relationship data
     val totalInvoicesSent: Int = 0,
     val totalAmountInvoiced: Double = 0.0,
@@ -35,11 +38,11 @@ data class BusinessContact(
     val averagePaymentDays: Int? = null,
     val creditLimit: Double? = null,
     val paymentTerms: String? = null, // e.g., "Net 30", "Due on receipt"
-    
+
     // Preferences
     val preferredCurrency: String = "ZAR",
     val autoSendInvoices: Boolean = false,
-    val sendPaymentReminders: Boolean = true
+    val sendPaymentReminders: Boolean = true,
 ) {
     companion object {
         fun create(
@@ -47,10 +50,10 @@ data class BusinessContact(
             type: ContactType,
             name: String,
             email: String? = null,
-            phone: String? = null
+            phone: String? = null,
         ): BusinessContact {
             val now = "2024-01-01T00:00:00Z" // Simplified for now
-            
+
             return BusinessContact(
                 id = generateContactId(),
                 businessId = businessId,
@@ -59,22 +62,22 @@ data class BusinessContact(
                 email = email,
                 phone = phone,
                 createdAt = now,
-                updatedAt = now
+                updatedAt = now,
             )
         }
-        
+
         private fun generateContactId(): String {
             return "contact_${kotlin.random.Random.nextLong()}_${(1000..9999).random()}"
         }
     }
-    
+
     /**
      * Get primary contact method (email preferred, then phone)
      */
     fun getPrimaryContact(): String? {
         return email ?: phone
     }
-    
+
     /**
      * ⚠️ REMOVED - Client-side business logic
      * Backend now provides:
@@ -82,19 +85,6 @@ data class BusinessContact(
      * - paymentReliabilityScore: Int (backend calculated)
      * - All business relationship metrics calculated server-side
      */
-}
-
-/**
- * Contact type enumeration
- */
-@Serializable
-enum class ContactType(val displayName: String, val pluralName: String) {
-    CUSTOMER("Customer", "Customers"),
-    SUPPLIER("Supplier", "Suppliers"),
-    BOTH("Customer & Supplier", "Customers & Suppliers");
-    
-    fun isCustomer(): Boolean = this in listOf(CUSTOMER, BOTH)
-    fun isSupplier(): Boolean = this in listOf(SUPPLIER, BOTH)
 }
 
 /**
@@ -106,7 +96,7 @@ data class BusinessAddress(
     val city: String,
     val province: String? = null, // South African provinces
     val postalCode: String,
-    val country: String = "South Africa"
+    val country: String = "South Africa",
 ) {
     /**
      * Format address for display
@@ -124,66 +114,13 @@ data class BusinessAddress(
             }
         }
     }
-    
+
     /**
      * Validate South African postal code format
      */
     fun isValidSAPostalCode(): Boolean {
         return postalCode.matches(Regex("\\d{4}"))
     }
-}
-
-/**
- * Tax details for South African business compliance
- */
-@Serializable
-data class TaxDetails(
-    val vatNumber: String? = null, // SA VAT number format: 4123456789
-    val companyRegistration: String? = null, // SA company registration format
-    val taxNumber: String? = null, // Income tax number
-    val isVatRegistered: Boolean = false,
-    val vatRate: Double = 0.15 // Default SA VAT rate
-) {
-    /**
-     * ⚠️ REMOVED - Client-side validation and formatting
-     * Backend now provides:
-     * - formattedVatNumber: String? (backend formatted)
-     * - vatValidationStatus: ValidationStatus (backend validated)
-     * - All formatting and validation handled server-side
-     */
-}
-
-/**
- * Banking details for payment processing
- */
-@Serializable
-data class BankingDetails(
-    val bankName: String,
-    val accountHolderName: String,
-    val accountNumber: String,
-    val branchCode: String? = null, // SA branch code format
-    val accountType: BankAccountType = BankAccountType.CURRENT,
-    val swiftCode: String? = null, // For international transfers
-    val reference: String? = null // Preferred payment reference
-) {
-    /**
-     * ⚠️ REMOVED - Client-side banking validation
-     * Backend now provides:
-     * - bankingValidationStatus: ValidationStatus (backend validated)
-     * - formattedAccountNumber: String (backend formatted)
-     * - All banking details validated server-side for security
-     */
-}
-
-/**
- * Bank account type enumeration
- */
-@Serializable
-enum class BankAccountType(val displayName: String) {
-    CURRENT("Current Account"),
-    SAVINGS("Savings Account"),
-    BUSINESS("Business Account"),
-    TRANSMISSION("Transmission Account")
 }
 
 /**
@@ -200,7 +137,7 @@ data class ContactInteraction(
     val outcome: InteractionOutcome? = null,
     val followUpDate: String? = null,
     val relatedInvoiceId: String? = null,
-    val createdBy: String? = null
+    val createdBy: String? = null,
 )
 
 /**
@@ -217,7 +154,7 @@ enum class InteractionType(val displayName: String, val icon: String) {
     FOLLOW_UP("Follow Up", "📅"),
     COMPLAINT("Complaint", "⚠️"),
     COMPLIMENT("Compliment", "⭐"),
-    OTHER("Other", "📝")
+    OTHER("Other", "📝"),
 }
 
 /**
@@ -229,7 +166,7 @@ enum class InteractionOutcome(val displayName: String) {
     PARTIAL("Partially Successful"),
     UNSUCCESSFUL("Unsuccessful"),
     FOLLOW_UP_REQUIRED("Follow-up Required"),
-    ESCALATION_REQUIRED("Escalation Required")
+    ESCALATION_REQUIRED("Escalation Required"),
 }
 
 /**
@@ -242,7 +179,7 @@ data class ContactFilter(
     val hasOutstandingInvoices: Boolean? = null,
     val tags: List<String> = emptyList(),
     val paymentReliabilityThreshold: Int? = null,
-    val province: String? = null
+    val province: String? = null,
 )
 
 /**
@@ -257,5 +194,5 @@ data class ContactSummary(
     val contactsWithOutstanding: Int,
     val averagePaymentDays: Double,
     val topCustomersByRevenue: List<BusinessContact>,
-    val recentInteractions: List<ContactInteraction>
+    val recentInteractions: List<ContactInteraction>,
 )

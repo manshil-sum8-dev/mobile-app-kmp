@@ -1,7 +1,9 @@
 package za.co.quantive.app.data.remote.api
 
 import kotlinx.serialization.Serializable
-import za.co.quantive.app.domain.entities.*
+import za.co.quantive.app.domain.entities.BusinessContact
+import za.co.quantive.app.domain.entities.Invoice
+import za.co.quantive.app.domain.entities.Money
 
 /**
  * Analytics response models - all calculated by backend
@@ -21,7 +23,7 @@ data class DashboardOverview(
     val topCustomers: List<BusinessContact>,
     val recentInvoices: List<Invoice>,
     val revenueGrowth: Double,
-    val paymentTrends: PaymentTrends
+    val paymentTrends: PaymentTrends,
 )
 
 @Serializable
@@ -32,7 +34,7 @@ data class BusinessMetrics(
     val customerMetrics: CustomerMetrics,
     val paymentMetrics: PaymentMetrics,
     val taxMetrics: TaxMetrics,
-    val trendsData: List<MetricDataPoint>
+    val trendsData: List<MetricDataPoint>,
 )
 
 @Serializable
@@ -43,7 +45,7 @@ data class RevenueAnalytics(
     val forecastedRevenue: Money,
     val revenueByMonth: List<RevenueDataPoint>,
     val topRevenueCustomers: List<CustomerRevenueData>,
-    val revenueByCategory: List<CategoryRevenueData>
+    val revenueByCategory: List<CategoryRevenueData>,
 )
 
 @Serializable
@@ -56,7 +58,7 @@ data class CustomerAnalytics(
     val customerRetentionRate: Double,
     val topCustomersByRevenue: List<CustomerRevenueData>,
     val customerSegmentation: List<CustomerSegment>,
-    val customerGrowthTrend: List<CustomerGrowthData>
+    val customerGrowthTrend: List<CustomerGrowthData>,
 )
 
 @Serializable
@@ -68,7 +70,7 @@ data class PaymentAnalytics(
     val overdueAmount: Money,
     val paymentMethodBreakdown: List<PaymentMethodData>,
     val paymentTrends: PaymentTrends,
-    val customerPaymentProfiles: List<CustomerPaymentProfile>
+    val customerPaymentProfiles: List<CustomerPaymentProfile>,
 )
 
 @Serializable
@@ -80,7 +82,7 @@ data class TaxAnalytics(
     val vatRate: Double,
     val complianceStatus: TaxComplianceStatus,
     val monthlyVatReports: List<MonthlyVatReport>,
-    val upcomingTaxDeadlines: List<TaxDeadline>
+    val upcomingTaxDeadlines: List<TaxDeadline>,
 )
 
 @Serializable
@@ -93,14 +95,14 @@ enum class MetricGranularity {
 data class PaymentTrends(
     val averageDaysImprovement: Double,
     val onTimePaymentTrend: Double,
-    val latePaymentTrend: Double
+    val latePaymentTrend: Double,
 )
 
 @Serializable
 data class RevenueMetrics(
     val total: Money,
     val growth: Double,
-    val forecast: Money
+    val forecast: Money,
 )
 
 @Serializable
@@ -108,35 +110,35 @@ data class CustomerMetrics(
     val total: Int,
     val active: Int,
     val growth: Double,
-    val retention: Double
+    val retention: Double,
 )
 
 @Serializable
 data class PaymentMetrics(
     val averageDays: Double,
     val onTimeRate: Double,
-    val outstandingAmount: Money
+    val outstandingAmount: Money,
 )
 
 @Serializable
 data class TaxMetrics(
     val vatCollected: Money,
     val vatOwed: Money,
-    val complianceScore: Double
+    val complianceScore: Double,
 )
 
 @Serializable
 data class MetricDataPoint(
     val date: String,
     val value: Double,
-    val label: String
+    val label: String,
 )
 
 @Serializable
 data class RevenueDataPoint(
     val period: String,
     val amount: Money,
-    val growth: Double
+    val growth: Double,
 )
 
 @Serializable
@@ -144,14 +146,14 @@ data class CustomerRevenueData(
     val customer: BusinessContact,
     val totalRevenue: Money,
     val invoiceCount: Int,
-    val averageInvoiceValue: Money
+    val averageInvoiceValue: Money,
 )
 
 @Serializable
 data class CategoryRevenueData(
     val category: String,
     val amount: Money,
-    val percentage: Double
+    val percentage: Double,
 )
 
 @Serializable
@@ -159,7 +161,7 @@ data class CustomerSegment(
     val name: String,
     val customerCount: Int,
     val totalRevenue: Money,
-    val characteristics: List<String>
+    val characteristics: List<String>,
 )
 
 @Serializable
@@ -167,7 +169,7 @@ data class CustomerGrowthData(
     val period: String,
     val newCustomers: Int,
     val churnedCustomers: Int,
-    val netGrowth: Int
+    val netGrowth: Int,
 )
 
 @Serializable
@@ -175,7 +177,7 @@ data class PaymentMethodData(
     val method: String,
     val count: Int,
     val totalAmount: Money,
-    val averageDays: Double
+    val averageDays: Double,
 )
 
 @Serializable
@@ -184,7 +186,7 @@ data class CustomerPaymentProfile(
     val averagePaymentDays: Double,
     val onTimePaymentRate: Double,
     val totalOutstanding: Money,
-    val riskScore: Int
+    val riskScore: Int,
 )
 
 @Serializable
@@ -192,7 +194,7 @@ data class TaxComplianceStatus(
     val isCompliant: Boolean,
     val score: Double,
     val issues: List<String>,
-    val recommendations: List<String>
+    val recommendations: List<String>,
 )
 
 @Serializable
@@ -201,7 +203,7 @@ data class MonthlyVatReport(
     val vatCollected: Money,
     val vatOwed: Money,
     val filingStatus: String,
-    val dueDate: String
+    val dueDate: String,
 )
 
 @Serializable
@@ -210,7 +212,7 @@ data class TaxDeadline(
     val description: String,
     val dueDate: String,
     val amount: Money?,
-    val status: String
+    val status: String,
 )
 
 // Export models
@@ -220,7 +222,7 @@ enum class ReportType {
     CUSTOMER_REPORT,
     TAX_REPORT,
     PAYMENT_REPORT,
-    FULL_BUSINESS_REPORT
+    FULL_BUSINESS_REPORT,
 }
 
 @Serializable
@@ -238,5 +240,5 @@ data class ExportResponse(
     val url: String,
     val filename: String,
     val expiresAt: String,
-    val format: ExportFormat
+    val format: ExportFormat,
 )

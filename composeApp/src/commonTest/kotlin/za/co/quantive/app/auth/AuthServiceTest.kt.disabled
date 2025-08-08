@@ -1,0 +1,395 @@
+package za.co.quantive.app.auth
+
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
+import za.co.quantive.app.testing.BaseTest
+import za.co.quantive.app.testing.MockFactory
+import za.co.quantive.app.testing.FakeSupabaseClient
+import za.co.quantive.app.testing.assertThrows
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * Comprehensive test suite for AuthService
+ * Tests authentication flows, token management, and error handling
+ * Coverage target: 95%+ for critical authentication logic
+ */
+class AuthServiceTest : BaseTest() {
+
+    private lateinit var fakeSupabaseClient: FakeSupabaseClient
+    private lateinit var authService: AuthService
+
+    override fun setUp() {
+        super.setUp()
+        fakeSupabaseClient = MockFactory.createFakeSupabaseClient()
+        authService = AuthService(fakeSupabaseClient)
+    }
+
+    override fun tearDown() {
+        MockFactory.clearMocks()
+        super.tearDown()
+    }
+
+    // Sign Up Tests
+
+    @Test
+    fun `signUp with valid credentials returns session`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "password123"
+        val expectedResponse = MockFactory.createAuthSuccessResponse()
+
+        fakeSupabaseClient.setNextResponse(expectedResponse)
+
+        // When
+        val session = authService.signUp(email, password)
+
+        // Then
+        assertEquals("test_access_token", session.accessToken)
+        assertEquals("test_refresh_token", session.refreshToken)
+        assertEquals("test_user_id", session.userId)
+        assertTrue(session.expiresAt > 0)
+
+        // Verify the correct endpoint was called
+        val callHistory = fakeSupabaseClient.getCallHistory()
+        assertEquals(1, callHistory.size)
+        assertEquals("POST", callHistory[0].method)
+        assertEquals("auth/v1/signup", callHistory[0].path)
+    }
+
+    @Test
+    fun `signUp with existing email throws exception`() = runTest {
+        // Given
+        val email = "existing@example.com"
+        val password = "password123"
+        val errorResponse = MockFactory.createAuthErrorResponse(
+            error = "user_already_exists",
+            errorDescription = "User with this email already exists"
+        )
+
+        fakeSupabaseClient.setNextResponse(errorResponse)
+
+        // When & Then
+        val exception = assertThrows<IllegalStateException> {
+            authService.signUp(email, password)
+        }
+
+        assertTrue(exception.message!!.contains("Signup failed"))
+        assertTrue(exception.message!!.contains("user_already_exists"))
+    }
+
+    @Test
+    fun `signUp with supabase error code throws exception`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "weak"
+        val errorResponse = kotlinx.serialization.json.buildJsonObject {
+            put("code", kotlinx.serialization.json.JsonPrimitive("weak_password"))
+            put("msg", kotlinx.serialization.json.JsonPrimitive("Password is too weak"))
+        }
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/signup",
+                body = any()
+            )
+        } returns errorResponse
+
+        // When & Then
+        val exception = assertThrows<IllegalStateException> {
+            authService.signUp(email, password)
+        }
+
+        assertTrue(exception.message!!.contains("Password is too weak"))
+        assertTrue(exception.message!!.contains("weak_password"))
+    }
+
+    @Test
+    fun `signUp with missing access token throws exception`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "password123"
+        val incompleteResponse = kotlinx.serialization.json.buildJsonObject {
+            put("refresh_token", kotlinx.serialization.json.JsonPrimitive("refresh_token"))
+            // Missing access_token
+        }
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/signup",
+                body = any()
+            )
+        } returns incompleteResponse
+
+        // When & Then
+        val exception = assertThrows<IllegalStateException> {
+            authService.signUp(email, password)
+        }
+
+        assertTrue(exception.message!!.contains("Missing access_token in response"))
+    }
+
+    // Sign In Tests
+
+    @Test
+    fun `signIn with valid credentials returns session`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "password123"
+        val expectedResponse = MockFactory.createAuthSuccessResponse()
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=password",
+                body = any()
+            )
+        } returns expectedResponse
+
+        // When
+        val session = authService.signIn(email, password)
+
+        // Then
+        assertEquals("test_access_token", session.accessToken)
+        assertEquals("test_refresh_token", session.refreshToken)
+        assertEquals("test_user_id", session.userId)
+        assertNotNull(session.expiresAt)
+
+        coVerify(exactly = 1) {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=password",
+                body = any()
+            )
+        }
+    }
+
+    @Test
+    fun `signIn with invalid credentials throws exception`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "wrongpassword"
+        val errorResponse = MockFactory.createAuthErrorResponse(
+            error = "invalid_credentials",
+            errorDescription = "Invalid email or password"
+        )
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=password",
+                body = any()
+            )
+        } returns errorResponse
+
+        // When & Then
+        val exception = assertThrows<IllegalStateException> {
+            authService.signIn(email, password)
+        }
+
+        assertTrue(exception.message!!.contains("Missing access_token"))
+    }
+
+    @Test
+    fun `signIn with empty response throws exception`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "password123"
+        val emptyResponse = kotlinx.serialization.json.buildJsonObject { }
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=password",
+                body = any()
+            )
+        } returns emptyResponse
+
+        // When & Then
+        val exception = assertThrows<IllegalStateException> {
+            authService.signIn(email, password)
+        }
+
+        assertTrue(exception.message!!.contains("Missing access_token in response"))
+    }
+
+    // Token Refresh Tests
+
+    @Test
+    fun `refresh with valid token returns new session`() = runTest {
+        // Given
+        val refreshToken = "valid_refresh_token"
+        val expectedResponse = MockFactory.createAuthSuccessResponse(
+            accessToken = "new_access_token",
+            refreshToken = "new_refresh_token"
+        )
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=refresh_token",
+                body = any()
+            )
+        } returns expectedResponse
+
+        // When
+        val session = authService.refresh(refreshToken)
+
+        // Then
+        assertEquals("new_access_token", session.accessToken)
+        assertEquals("new_refresh_token", session.refreshToken)
+        assertEquals("test_user_id", session.userId)
+        assertTrue(session.expiresAt > 0)
+
+        coVerify(exactly = 1) {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=refresh_token",
+                body = any()
+            )
+        }
+    }
+
+    @Test
+    fun `refresh with invalid token throws exception`() = runTest {
+        // Given
+        val invalidRefreshToken = "invalid_refresh_token"
+        val errorResponse = MockFactory.createAuthErrorResponse(
+            error = "invalid_grant",
+            errorDescription = "Invalid refresh token"
+        )
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=refresh_token",
+                body = any()
+            )
+        } returns errorResponse
+
+        // When & Then
+        val exception = assertThrows<IllegalStateException> {
+            authService.refresh(invalidRefreshToken)
+        }
+
+        assertTrue(exception.message!!.contains("Missing access_token"))
+    }
+
+    @Test
+    fun `refresh calculates expires_at when not provided`() = runTest {
+        // Given
+        val refreshToken = "valid_refresh_token"
+        val responseWithoutExpiresAt = kotlinx.serialization.json.buildJsonObject {
+            put("access_token", kotlinx.serialization.json.JsonPrimitive("new_access_token"))
+            put("refresh_token", kotlinx.serialization.json.JsonPrimitive("new_refresh_token"))
+            put("expires_in", kotlinx.serialization.json.JsonPrimitive(7200L))
+            put("user", kotlinx.serialization.json.buildJsonObject {
+                put("id", kotlinx.serialization.json.JsonPrimitive("test_user_id"))
+            })
+            // Missing expires_at
+        }
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=refresh_token",
+                body = any()
+            )
+        } returns responseWithoutExpiresAt
+
+        // When
+        val session = authService.refresh(refreshToken)
+
+        // Then
+        assertEquals("new_access_token", session.accessToken)
+        assertEquals("new_refresh_token", session.refreshToken)
+        assertTrue(session.expiresAt > System.currentTimeMillis() / 1000L) // Should be future timestamp
+    }
+
+    // Edge Cases and Error Handling Tests
+
+    @Test
+    fun `all auth methods handle missing user id`() = runTest {
+        // Given
+        val responseWithoutUserId = kotlinx.serialization.json.buildJsonObject {
+            put("access_token", kotlinx.serialization.json.JsonPrimitive("access_token"))
+            put("refresh_token", kotlinx.serialization.json.JsonPrimitive("refresh_token"))
+            put("expires_in", kotlinx.serialization.json.JsonPrimitive(3600L))
+            put("user", kotlinx.serialization.json.buildJsonObject {
+                // Missing id field
+                put("email", kotlinx.serialization.json.JsonPrimitive("test@example.com"))
+            })
+        }
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(any(), any())
+        } returns responseWithoutUserId
+
+        // When & Then - Test all methods
+        listOf(
+            { authService.signUp("test@example.com", "password") },
+            { authService.signIn("test@example.com", "password") },
+            { authService.refresh("refresh_token") }
+        ).forEach { method ->
+            val exception = assertThrows<IllegalStateException> {
+                method()
+            }
+            assertTrue(exception.message!!.contains("Missing user.id in response"))
+        }
+    }
+
+    @Test
+    fun `auth methods handle network exceptions`() = runTest {
+        // Given
+        val networkException = RuntimeException("Network error")
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(any(), any())
+        } throws networkException
+
+        // When & Then
+        val exception = assertThrows<RuntimeException> {
+            authService.signIn("test@example.com", "password")
+        }
+
+        assertEquals("Network error", exception.message)
+    }
+
+    // Integration-like Tests
+
+    @Test
+    fun `complete authentication flow works correctly`() = runTest {
+        // Given - Setup responses for signup and refresh
+        val signupResponse = MockFactory.createAuthSuccessResponse(
+            accessToken = "initial_access_token",
+            refreshToken = "initial_refresh_token"
+        )
+
+        val refreshResponse = MockFactory.createAuthSuccessResponse(
+            accessToken = "refreshed_access_token",
+            refreshToken = "refreshed_refresh_token"
+        )
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/signup",
+                body = any()
+            )
+        } returns signupResponse
+
+        coEvery {
+            mockSupabaseClient.post<JsonObject, Any>(
+                path = "auth/v1/token?grant_type=refresh_token",
+                body = any()
+            )
+        } returns refreshResponse
+
+        // When - Signup and then refresh
+        val initialSession = authService.signUp("test@example.com", "password123")
+        val refreshedSession = authService.refresh(initialSession.refreshToken)
+
+        // Then - Both sessions should be valid but different
+        assertEquals("initial_access_token", initialSession.accessToken)
+        assertEquals("initial_refresh_token", initialSession.refreshToken)
+
+        assertEquals("refreshed_access_token", refreshedSession.accessToken)
+        assertEquals("refreshed_refresh_token", refreshedSession.refreshToken)
+
+        // User ID should remain the same
+        assertEquals(initialSession.userId, refreshedSession.userId)
+    }
+}

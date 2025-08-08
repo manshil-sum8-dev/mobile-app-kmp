@@ -1,0 +1,176 @@
+package za.co.quantive.app.auth.domain.model
+
+import kotlin.test.*
+
+/**
+ * Unit tests for UserSession domain model
+ */
+class UserSessionTest {
+
+    @Test
+    fun `isValid should return true when tokens are valid`() {
+        // Given
+        val session = createValidUserSession()
+
+        // When & Then
+        assertTrue(session.isValid())
+    }
+
+    @Test
+    fun `isValid should return false when tokens are expired`() {
+        // Given
+        val session = createExpiredUserSession()
+
+        // When & Then
+        assertFalse(session.isValid())
+    }
+
+    @Test
+    fun `requiresRefresh should return true when tokens are close to expiry`() {
+        // Given
+        val nearExpiry = (System.currentTimeMillis() / 1000) + 300 // 5 minutes from now
+        val user = createTestUser()
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = nearExpiry,
+        )
+        val session = UserSession(user = user, tokens = tokens)
+
+        // When & Then
+        assertTrue(session.requiresRefresh()) // 10 minute buffer by default
+    }
+
+    @Test
+    fun `requiresRefresh should return false when tokens have plenty of time left`() {
+        // Given
+        val session = createValidUserSession()
+
+        // When & Then
+        assertFalse(session.requiresRefresh())
+    }
+
+    @Test
+    fun `session should contain user and token information`() {
+        // Given
+        val user = createTestUser()
+        val tokens = createValidTokens()
+        val deviceId = "test-device-id"
+        val lastActivity = "2024-01-01T12:00:00Z"
+
+        // When
+        val session = UserSession(
+            user = user,
+            tokens = tokens,
+            deviceId = deviceId,
+            lastActivity = lastActivity,
+        )
+
+        // Then
+        assertEquals(user, session.user)
+        assertEquals(tokens, session.tokens)
+        assertEquals(deviceId, session.deviceId)
+        assertEquals(lastActivity, session.lastActivity)
+    }
+
+    @Test
+    fun `session should work with null optional fields`() {
+        // Given
+        val user = createTestUser()
+        val tokens = createValidTokens()
+
+        // When
+        val session = UserSession(
+            user = user,
+            tokens = tokens,
+            deviceId = null,
+            lastActivity = null,
+        )
+
+        // Then
+        assertEquals(user, session.user)
+        assertEquals(tokens, session.tokens)
+        assertNull(session.deviceId)
+        assertNull(session.lastActivity)
+    }
+
+    @Test
+    fun `sessions should be equal when all properties match`() {
+        // Given
+        val user = createTestUser()
+        val tokens = createValidTokens()
+        val session1 = UserSession(
+            user = user,
+            tokens = tokens,
+            deviceId = "device-1",
+            lastActivity = "2024-01-01T12:00:00Z",
+        )
+        val session2 = UserSession(
+            user = user,
+            tokens = tokens,
+            deviceId = "device-1",
+            lastActivity = "2024-01-01T12:00:00Z",
+        )
+
+        // When & Then
+        assertEquals(session1, session2)
+        assertEquals(session1.hashCode(), session2.hashCode())
+    }
+
+    @Test
+    fun `sessions should not be equal when properties differ`() {
+        // Given
+        val user = createTestUser()
+        val tokens = createValidTokens()
+        val session1 = UserSession(
+            user = user,
+            tokens = tokens,
+            deviceId = "device-1",
+        )
+        val session2 = UserSession(
+            user = user,
+            tokens = tokens,
+            deviceId = "device-2",
+        )
+
+        // When & Then
+        assertNotEquals(session1, session2)
+    }
+
+    private fun createValidUserSession(): UserSession {
+        return UserSession(
+            user = createTestUser(),
+            tokens = createValidTokens(),
+        )
+    }
+
+    private fun createExpiredUserSession(): UserSession {
+        val expiredTokens = AuthTokens(
+            accessToken = "expired-token",
+            refreshToken = "expired-refresh",
+            expiresAt = (System.currentTimeMillis() / 1000) - 3600, // 1 hour ago
+        )
+        return UserSession(
+            user = createTestUser(),
+            tokens = expiredTokens,
+        )
+    }
+
+    private fun createTestUser(): AuthUser {
+        return AuthUser(
+            id = "test-user-id",
+            email = "test@example.com",
+            emailVerified = true,
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z",
+        )
+    }
+
+    private fun createValidTokens(): AuthTokens {
+        return AuthTokens(
+            accessToken = "valid-access-token",
+            refreshToken = "valid-refresh-token",
+            expiresAt = (System.currentTimeMillis() / 1000) + 3600, // 1 hour from now
+        )
+    }
+}

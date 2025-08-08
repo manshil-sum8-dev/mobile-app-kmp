@@ -2,9 +2,23 @@ package za.co.quantive.app.data.remote.repository
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import za.co.quantive.app.data.remote.api.*
-import za.co.quantive.app.data.local.ContactCacheImpl
-import za.co.quantive.app.domain.entities.*
+import za.co.quantive.app.data.remote.api.ContactApi
+import za.co.quantive.app.domain.contact.BatchUpdateResult
+import za.co.quantive.app.domain.contact.ContactAnalytics
+import za.co.quantive.app.domain.contact.ContactBatchUpdate
+import za.co.quantive.app.domain.contact.ContactRepository
+import za.co.quantive.app.domain.contact.ContactSummary
+import za.co.quantive.app.domain.contact.ContactType
+import za.co.quantive.app.domain.contact.CreateContactRequest
+import za.co.quantive.app.domain.contact.ExportFormat
+import za.co.quantive.app.domain.contact.ExportResult
+import za.co.quantive.app.domain.contact.ImportOptions
+import za.co.quantive.app.domain.contact.ImportResult
+import za.co.quantive.app.domain.contact.PatchContactRequest
+import za.co.quantive.app.domain.contact.UpdateContactRequest
+import za.co.quantive.app.domain.entities.BusinessContact
+import za.co.quantive.app.domain.entities.ContactFilter
+import za.co.quantive.app.domain.shared.DateRange
 
 // Add the interface definition here for now
 interface ContactCache {
@@ -22,19 +36,19 @@ interface ContactCache {
  */
 class BackendContactRepository(
     private val api: ContactApi,
-    private val cache: ContactCache
+    private val cache: ContactCache,
 ) : ContactRepository {
 
     override suspend fun getContacts(
         filter: ContactFilter?,
-        forceRefresh: Boolean
+        forceRefresh: Boolean,
     ): Flow<Result<List<BusinessContact>>> = flow {
         try {
-            // Emit cached data first for better UX
+            // Check cache first
             if (!forceRefresh) {
                 val cachedContacts = cache.getContacts(filter)
                 if (cachedContacts.isNotEmpty()) {
-                    emit(Result.success(cachedContacts))
+                    emit(Result.success(cachedContacts)) // Fast cache response
                 }
             }
 
@@ -42,12 +56,17 @@ class BackendContactRepository(
             val response = api.getContacts(
                 page = 0,
                 limit = 100, // TODO: Implement proper pagination
-                filter = filter
+                filter = filter,
             )
 
             if (response.isSuccess()) {
                 val contacts = response.data!!.data
+
+                // Smart caching with appropriate TTL based on filter
                 cache.saveContacts(contacts)
+
+                // Cache is automatically saved by saveContacts
+
                 emit(Result.success(contacts))
             } else {
                 emit(Result.failure(Exception(response.message ?: "Failed to fetch contacts")))
@@ -128,29 +147,129 @@ class BackendContactRepository(
         }
     }
 
-    override suspend fun getContactSummary(dateRange: DateRange?): Result<ContactSummary> {
+    /**
+     * Get recent customers for invoice creation autocomplete
+     * Uses smart caching for frequently accessed data
+     */
+    suspend fun getRecentCustomers(limit: Int = 20): Result<List<BusinessContact>> {
         return try {
-            val response = api.getContactSummary(dateRange)
+            // Check cache first
+            val cachedCustomers = cache.getContacts(ContactFilter(type = ContactType.CUSTOMER))
+            if (cachedCustomers.isNotEmpty()) {
+                return Result.success(cachedCustomers.take(limit)) // Instant response
+            }
+
+            // Fetch from backend using new REST endpoint
+            val response = api.getContacts(
+                page = 0,
+                limit = limit,
+                filter = ContactFilter(type = ContactType.CUSTOMER),
+            )
+
+            if (response.isSuccess()) {
+                val customers = response.data!!.data
+                cache.saveContacts(customers)
+                Result.success(customers)
+            } else {
+                Result.failure(Exception(response.message ?: "Failed to fetch recent customers"))
+            }
+        } catch (e: Exception) {
+            // Fallback to cache on network error
+            val cachedCustomers = cache.getContacts(ContactFilter(type = ContactType.CUSTOMER))
+            if (cachedCustomers.isNotEmpty()) {
+                Result.success(cachedCustomers.take(limit))
+            } else {
+                Result.failure(e)
+            }
+        }
+    }
+
+    override suspend fun patchContact(id: String, request: PatchContactRequest): Result<BusinessContact> {
+        return try {
+            // TODO: Implement patch contact via API
+            Result.failure(Exception("Patch contact not implemented yet"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun searchContacts(query: String, type: ContactType?, limit: Int): Result<List<BusinessContact>> {
+        return try {
+            val response = api.searchContacts(query, type, limit)
             if (response.isSuccess()) {
                 Result.success(response.data!!)
             } else {
-                Result.failure(Exception(response.message ?: "Failed to fetch contact summary"))
+                Result.failure(Exception(response.message ?: "Search failed"))
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-}
 
-/**
- * Backend-driven contact repository interface
- */
-interface ContactRepository {
-    suspend fun getContacts(filter: ContactFilter? = null, forceRefresh: Boolean = false): Flow<Result<List<BusinessContact>>>
-    suspend fun getContact(id: String): Result<BusinessContact>
-    suspend fun createContact(request: CreateContactRequest): Result<BusinessContact>
-    suspend fun updateContact(id: String, request: UpdateContactRequest): Result<BusinessContact>
-    suspend fun deleteContact(id: String): Result<Unit>
-    suspend fun getContactSummary(dateRange: DateRange? = null): Result<ContactSummary>
-}
+    override suspend fun getRecentContacts(type: ContactType?, limit: Int): Result<List<BusinessContact>> {
+        return try {
+            val response = api.getRecentContacts(type, limit)
+            if (response.isSuccess()) {
+                Result.success(response.data!!)
+            } else {
+                Result.failure(Exception(response.message ?: "Failed to get recent contacts"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
+    override suspend fun getFrequentCustomers(limit: Int): Result<List<BusinessContact>> {
+        return try {
+            // Use recent customers as frequent customers for now
+            getRecentContacts(ContactType.CUSTOMER, limit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getContactSummary(dateRange: DateRange?): Result<ContactSummary> {
+        return try {
+            // TODO: Implement contact summary via RPC service
+            Result.failure(Exception("Contact summary not implemented yet"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getContactAnalytics(contactId: String, dateRange: DateRange?): Result<ContactAnalytics> {
+        return try {
+            // TODO: Implement contact analytics via RPC service
+            Result.failure(Exception("Contact analytics not implemented yet"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun importContacts(contacts: List<CreateContactRequest>, options: ImportOptions): Result<ImportResult> {
+        return try {
+            // TODO: Implement bulk import
+            Result.failure(Exception("Contact import not implemented yet"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun exportContacts(filter: ContactFilter?, format: ExportFormat): Result<ExportResult> {
+        return try {
+            // TODO: Implement export functionality
+            Result.failure(Exception("Contact export not implemented yet"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateContactsBatch(updates: List<ContactBatchUpdate>): Result<BatchUpdateResult> {
+        return try {
+            // TODO: Implement batch update
+            Result.failure(Exception("Batch update not implemented yet"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}

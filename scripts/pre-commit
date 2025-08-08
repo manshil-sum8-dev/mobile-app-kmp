@@ -1,0 +1,104 @@
+#!/bin/sh
+# Pre-commit quality checks for Quantive KMP
+# Based on TECH-DEBT-QA-002 enterprise requirements
+
+echo "🔍 Running pre-commit quality checks..."
+
+# Store exit codes
+KTLINT_EXIT=0
+DETEKT_EXIT=0
+TEST_EXIT=0
+
+# Function to print colored output
+print_status() {
+    case $2 in
+        "success") echo "✅ $1" ;;
+        "warning") echo "⚠️ $1" ;;
+        "error") echo "❌ $1" ;;
+        "info") echo "ℹ️ $1" ;;
+    esac
+}
+
+# Check if we're in the right directory
+if [ ! -f "./gradlew" ]; then
+    print_status "Not in project root directory" "error"
+    exit 1
+fi
+
+print_status "Starting quality gates validation..." "info"
+
+# Run ktlint format first to auto-fix issues
+print_status "Auto-formatting code with ktlint..." "info"
+./gradlew ktlintFormat --quiet
+if [ $? -eq 0 ]; then
+    print_status "Code formatting completed" "success"
+else
+    print_status "Code formatting had issues, but continuing..." "warning"
+fi
+
+# Run ktlint check
+print_status "Checking code style with ktlint..." "info"
+./gradlew ktlintCheck --quiet
+KTLINT_EXIT=$?
+if [ $KTLINT_EXIT -eq 0 ]; then
+    print_status "ktlint check passed" "success"
+else
+    print_status "ktlint check failed" "error"
+    print_status "Run './gradlew ktlintFormat' to fix formatting issues" "info"
+fi
+
+# Run detekt static analysis
+print_status "Running static analysis with detekt..." "info"
+./gradlew detekt --quiet
+DETEKT_EXIT=$?
+if [ $DETEKT_EXIT -eq 0 ]; then
+    print_status "Detekt analysis passed" "success"
+else
+    print_status "Detekt analysis failed" "error"
+    print_status "Check the report at build/reports/detekt/detekt.html" "info"
+fi
+
+# Run critical unit tests
+print_status "Running critical unit tests..." "info"
+./gradlew :composeApp:testDebugUnitTest --quiet --continue
+TEST_EXIT=$?
+if [ $TEST_EXIT -eq 0 ]; then
+    print_status "Unit tests passed" "success"
+else
+    print_status "Unit tests failed" "error"
+fi
+
+# Check for TODO/FIXME comments (warning only, don't fail)
+TODO_COUNT=$(find . -name "*.kt" -not -path "./build/*" -not -path "./.gradle/*" | xargs grep -l "TODO\|FIXME" | wc -l)
+if [ $TODO_COUNT -gt 0 ]; then
+    print_status "Found $TODO_COUNT files with TODO/FIXME comments" "warning"
+    print_status "Consider resolving these before release" "info"
+fi
+
+# Check for potential security issues (basic scan)
+if grep -r "password\|secret\|api_key" --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle >/dev/null 2>&1; then
+    print_status "Potential hardcoded credentials found" "warning"
+    print_status "Verify these are not actual secrets" "info"
+fi
+
+# Summary
+print_status "Quality check summary:" "info"
+if [ $KTLINT_EXIT -eq 0 ] && [ $DETEKT_EXIT -eq 0 ] && [ $TEST_EXIT -eq 0 ]; then
+    print_status "All quality gates passed! ✨" "success"
+    exit 0
+else
+    print_status "Some quality checks failed:" "error"
+    if [ $KTLINT_EXIT -ne 0 ]; then
+        print_status "- Code formatting issues" "error"
+    fi
+    if [ $DETEKT_EXIT -ne 0 ]; then
+        print_status "- Static analysis issues" "error"
+    fi
+    if [ $TEST_EXIT -ne 0 ]; then
+        print_status "- Unit test failures" "error"
+    fi
+    print_status "" "info"
+    print_status "Fix these issues and try again" "info"
+    print_status "To bypass these checks (NOT RECOMMENDED): git commit --no-verify" "warning"
+    exit 1
+fi

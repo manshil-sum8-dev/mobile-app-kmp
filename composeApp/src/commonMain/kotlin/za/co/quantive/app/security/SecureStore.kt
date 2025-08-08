@@ -6,7 +6,7 @@ expect object SecureStore {
     suspend fun saveSession(session: Session?)
     suspend fun getSession(): Session?
     suspend fun clearSession()
-    
+
     // Onboarding and user preferences
     suspend fun setOnboardingCompleted(completed: Boolean)
     suspend fun isOnboardingCompleted(): Boolean

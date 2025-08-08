@@ -1,0 +1,247 @@
+package za.co.quantive.app.auth.domain.usecase
+
+import kotlinx.coroutines.test.runTest
+import za.co.quantive.app.auth.domain.model.*
+import za.co.quantive.app.auth.domain.repository.Result
+import za.co.quantive.app.auth.domain.repository.success
+import kotlin.test.*
+
+/**
+ * Unit tests for SignUpUseCase
+ */
+class SignUpUseCaseTest {
+
+    private lateinit var mockAuthRepository: MockAuthRepository
+    private lateinit var signUpUseCase: SignUpUseCase
+
+    @BeforeTest
+    fun setup() {
+        mockAuthRepository = MockAuthRepository()
+        signUpUseCase = SignUpUseCase(mockAuthRepository)
+    }
+
+    @Test
+    fun `execute with valid credentials should return success`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "StrongPass123"
+        val confirmPassword = "StrongPass123"
+        val expectedSession = createTestUserSession()
+        mockAuthRepository.signUpResult = success(expectedSession)
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Success)
+        assertEquals(expectedSession, result.value)
+        assertEquals(email.trim(), mockAuthRepository.lastSignUpEmail)
+        assertEquals(password, mockAuthRepository.lastSignUpPassword)
+    }
+
+    @Test
+    fun `execute with empty email should return validation error`() = runTest {
+        // Given
+        val email = ""
+        val password = "StrongPass123"
+        val confirmPassword = "StrongPass123"
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("email", error.field)
+    }
+
+    @Test
+    fun `execute with invalid email should return invalid email error`() = runTest {
+        // Given
+        val email = "invalid-email"
+        val password = "StrongPass123"
+        val confirmPassword = "StrongPass123"
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Error)
+        assertTrue(result.error is AuthError.InvalidEmail)
+    }
+
+    @Test
+    fun `execute with weak password should return weak password error`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "weak" // Doesn't meet strength requirements
+        val confirmPassword = "weak"
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Error)
+        assertTrue(result.error is AuthError.WeakPassword)
+    }
+
+    @Test
+    fun `execute with mismatched passwords should return validation error`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "StrongPass123"
+        val confirmPassword = "DifferentPass123"
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("confirmPassword", error.field)
+    }
+
+    @Test
+    fun `password strength validation should require all criteria`() = runTest {
+        val weakPasswords = listOf(
+            "short", // Too short
+            "onlylowercase", // No uppercase
+            "ONLYUPPERCASE", // No lowercase
+            "NoNumbers!", // No digits
+            "LongEnoughButNoDigits", // No digits
+            "longenoughbutnonumber1", // No uppercase
+        )
+
+        weakPasswords.forEach { password ->
+            val result = signUpUseCase.execute("test@example.com", password, password)
+            assertTrue(result is Result.Error, "Password '$password' should be rejected")
+            assertTrue(result.error is AuthError.WeakPassword, "Password '$password' should return WeakPassword error")
+        }
+    }
+
+    @Test
+    fun `password strength validation should accept strong passwords`() = runTest {
+        val strongPasswords = listOf(
+            "StrongPass123",
+            "MySecure1Password",
+            "C0mplex!Pass",
+            "Another5trongP@ss",
+        )
+
+        val expectedSession = createTestUserSession()
+        mockAuthRepository.signUpResult = success(expectedSession)
+
+        strongPasswords.forEach { password ->
+            val result = signUpUseCase.execute("test@example.com", password, password)
+            assertTrue(result is Result.Success, "Password '$password' should be accepted")
+        }
+    }
+
+    @Test
+    fun `execute should trim email whitespace`() = runTest {
+        // Given
+        val email = "  test@example.com  "
+        val password = "StrongPass123"
+        val confirmPassword = "StrongPass123"
+        val expectedSession = createTestUserSession()
+        mockAuthRepository.signUpResult = success(expectedSession)
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Success)
+        assertEquals("test@example.com", mockAuthRepository.lastSignUpEmail)
+    }
+
+    @Test
+    fun `execute with various valid email formats should succeed`() = runTest {
+        val validEmails = listOf(
+            "user@domain.com",
+            "user.name@domain.co.za",
+            "user+tag@example.org",
+            "test.email+tag@example-domain.com",
+            "user123@domain123.com",
+        )
+
+        val expectedSession = createTestUserSession()
+        mockAuthRepository.signUpResult = success(expectedSession)
+
+        validEmails.forEach { email ->
+            val result = signUpUseCase.execute(email, "StrongPass123", "StrongPass123")
+            assertTrue(result is Result.Success, "Should succeed for email: $email")
+        }
+    }
+
+    @Test
+    fun `execute with various invalid email formats should fail`() = runTest {
+        val invalidEmails = listOf(
+            "invalid",
+            "@domain.com",
+            "user@",
+            "user@domain",
+            "user.domain.com",
+            "",
+            " ",
+            "user space@domain.com",
+        )
+
+        invalidEmails.forEach { email ->
+            val result = signUpUseCase.execute(email, "StrongPass123", "StrongPass123")
+            assertTrue(result is Result.Error, "Should fail for email: $email")
+        }
+    }
+
+    @Test
+    fun `execute with empty password should return validation error`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = ""
+        val confirmPassword = ""
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("password", error.field)
+    }
+
+    @Test
+    fun `execute with blank password should return validation error`() = runTest {
+        // Given
+        val email = "test@example.com"
+        val password = "   "
+        val confirmPassword = "   "
+
+        // When
+        val result = signUpUseCase.execute(email, password, confirmPassword)
+
+        // Then
+        assertTrue(result is Result.Error)
+        val error = result.error
+        assertTrue(error is AuthError.ValidationError)
+        assertEquals("password", error.field)
+    }
+
+    private fun createTestUserSession(): UserSession {
+        return UserSession(
+            user = AuthUser(
+                id = "test-user-id",
+                email = "test@example.com",
+                emailVerified = false, // New users start unverified
+                createdAt = "2024-01-01T00:00:00Z",
+                updatedAt = "2024-01-01T00:00:00Z",
+            ),
+            tokens = AuthTokens(
+                accessToken = "test-access-token",
+                refreshToken = "test-refresh-token",
+                expiresAt = System.currentTimeMillis() / 1000 + 3600, // 1 hour from now
+            ),
+        )
+    }
+}

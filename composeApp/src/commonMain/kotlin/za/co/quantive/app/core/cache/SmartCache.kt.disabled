@@ -1,0 +1,231 @@
+package za.co.quantive.app.core.cache
+
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import za.co.quantive.app.core.time.Clock
+import kotlinx.datetime.Clock as KotlinxClock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+
+/**
+ * Smart TTL-based cache for backend-first architecture
+ * Optimized for frequently accessed data subsets, not full offline persistence
+ */
+class SmartCache(
+    private val storage: CacheStorage,
+    private val json: Json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+) {
+    private val mutex = Mutex()
+    
+    // Cache buckets with different eviction policies
+    private val fastCache = LRUCache<String, CacheEntry>(maxSize = 100) // Recent items, searches
+    private val standardCache = LRUCache<String, CacheEntry>(maxSize = 500) // Lists, standard data
+    private val referenceCache = LRUCache<String, CacheEntry>(maxSize = 50) // Settings, rates, static data
+    
+    /**
+     * Store data in cache with TTL
+     */
+    suspend fun <T> put(key: String, value: T, ttl: Duration) {
+        mutex.withLock {
+            val entry = CacheEntry(
+                data = json.encodeToString(value),
+                timestamp = KotlinxClock.System.now().toEpochMilliseconds(),
+                ttl = ttl.inWholeMilliseconds,
+                accessCount = 0,
+                lastAccessed = Clock.now().toEpochMilliseconds()
+            )
+            
+            val bucket = getBucket(key)
+            bucket.put(key, entry)
+            
+            // Also persist to storage for app restart persistence
+            storage.put(key, entry)
+        }
+    }
+    
+    /**
+     * Retrieve data from cache
+     */
+    suspend inline fun <reified T> get(key: String): T? {
+        return mutex.withLock {
+            // Try memory cache first
+            val bucket = getBucket(key)
+            var entry = bucket.get(key)
+            
+            // Fall back to persistent storage
+            if (entry == null) {
+                entry = storage.get(key)
+                if (entry != null) {
+                    bucket.put(key, entry) // Warm memory cache
+                }
+            }
+            
+            if (entry != null && !isExpired(entry)) {
+                // Update access statistics
+                val updatedEntry = entry.copy(
+                    accessCount = entry.accessCount + 1,
+                    lastAccessed = KotlinxClock.System.now().toEpochMilliseconds()
+                )
+                bucket.put(key, updatedEntry)
+                
+                try {
+                    return json.decodeFromString<T>(entry.data)
+                } catch (e: Exception) {
+                    // Remove corrupted cache entry
+                    invalidate(key)
+                    null
+                }
+            } else {
+                // Remove expired entry
+                if (entry != null) {
+                    invalidate(key)
+                }
+                null
+            }
+        }
+    }
+    
+    /**
+     * Check if cache entry exists and is not expired
+     */
+    suspend fun isValid(key: String): Boolean {
+        return mutex.withLock {
+            val bucket = getBucket(key)
+            val entry = bucket.get(key) ?: storage.get(key)
+            entry != null && !isExpired(entry)
+        }
+    }
+    
+    /**
+     * Remove specific cache entry
+     */
+    suspend fun invalidate(key: String) {
+        mutex.withLock {
+            getBucket(key).remove(key)
+            storage.remove(key)
+        }
+    }
+    
+    /**
+     * Remove all cache entries matching pattern
+     */
+    suspend fun invalidatePattern(pattern: String) {
+        mutex.withLock {
+            val regex = pattern.replace("*", ".*").toRegex()
+            
+            listOf(fastCache, standardCache, referenceCache).forEach { bucket ->
+                bucket.snapshot().keys.filter { regex.matches(it) }.forEach { key ->
+                    bucket.remove(key)
+                }
+            }
+            
+            storage.removePattern(pattern)
+        }
+    }
+    
+    /**
+     * Clear all cache entries
+     */
+    suspend fun clearAll() {
+        mutex.withLock {
+            fastCache.evictAll()
+            standardCache.evictAll() 
+            referenceCache.evictAll()
+            storage.clear()
+        }
+    }
+    
+    /**
+     * Get cache statistics for monitoring
+     */
+    suspend fun getStats(): CacheStats {
+        return mutex.withLock {
+            CacheStats(
+                fastCacheSize = fastCache.size(),
+                standardCacheSize = standardCache.size(),
+                referenceCacheSize = referenceCache.size(),
+                totalMemoryEntries = fastCache.size() + standardCache.size() + referenceCache.size(),
+                persistentEntries = storage.size()
+            )
+        }
+    }
+    
+    private fun getBucket(key: String): LRUCache<String, CacheEntry> = when {
+        key.startsWith("recent_") || key.startsWith("search_") -> fastCache
+        key.startsWith("settings_") || key.startsWith("rates_") || key.startsWith("categories_") -> referenceCache
+        else -> standardCache
+    }
+    
+    private fun isExpired(entry: CacheEntry): Boolean {
+        val now = KotlinxClock.System.now().toEpochMilliseconds()
+        return (now - entry.timestamp) > entry.ttl
+    }
+}
+
+/**
+ * Cache entry with metadata
+ */
+@Serializable
+data class CacheEntry(
+    val data: String, // JSON serialized data
+    val timestamp: Long,
+    val ttl: Long, // TTL in milliseconds
+    val accessCount: Int = 0,
+    val lastAccessed: Long
+)
+
+/**
+ * Cache statistics for monitoring
+ */
+data class CacheStats(
+    val fastCacheSize: Int,
+    val standardCacheSize: Int,
+    val referenceCacheSize: Int,
+    val totalMemoryEntries: Int,
+    val persistentEntries: Int
+)
+
+/**
+ * Simple LRU Cache implementation
+ */
+class LRUCache<K, V>(private val maxSize: Int) {
+    private val cache = LinkedHashMap<K, V>(maxSize + 1, 0.75f, true)
+    
+    fun put(key: K, value: V): V? {
+        val previous = cache.put(key, value)
+        if (cache.size > maxSize) {
+            val eldest = cache.entries.iterator().next()
+            cache.remove(eldest.key)
+        }
+        return previous
+    }
+    
+    fun get(key: K): V? = cache[key]
+    
+    fun remove(key: K): V? = cache.remove(key)
+    
+    fun size(): Int = cache.size
+    
+    fun evictAll() = cache.clear()
+    
+    fun snapshot(): Map<K, V> = HashMap(cache)
+}
+
+/**
+ * Platform-specific cache storage interface
+ */
+interface CacheStorage {
+    suspend fun put(key: String, entry: CacheEntry)
+    suspend fun get(key: String): CacheEntry?
+    suspend fun remove(key: String)
+    suspend fun removePattern(pattern: String)
+    suspend fun clear()
+    suspend fun size(): Int
+}

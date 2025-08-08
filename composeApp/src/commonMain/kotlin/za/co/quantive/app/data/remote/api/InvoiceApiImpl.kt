@@ -1,29 +1,30 @@
 package za.co.quantive.app.data.remote.api
 
 import za.co.quantive.app.data.remote.SupabaseClient
-import za.co.quantive.app.domain.entities.*
+import za.co.quantive.app.domain.entities.Invoice
+import za.co.quantive.app.domain.entities.InvoiceFilter
 
 /**
  * Invoice API implementation using Supabase backend
  * Connects to backend REST API endpoints for invoice operations
  */
 class InvoiceApiImpl(
-    private val client: SupabaseClient
+    private val client: SupabaseClient,
 ) : InvoiceApi {
 
     override suspend fun getInvoices(
         page: Int,
         limit: Int,
-        filter: InvoiceFilter?
+        filter: InvoiceFilter?,
     ): ApiResponse<PaginatedResponse<Invoice>> {
         return try {
             // Build query parameters for filtering and pagination
             val params = mutableMapOf<String, String?>(
                 "offset" to (page * limit).toString(),
                 "limit" to limit.toString(),
-                "select" to "*,customer:customers(*),items:invoice_items(*)"
+                "select" to "*,customer:customers(*),items:invoice_items(*)",
             )
-            
+
             // Apply filters if provided
             filter?.let { f ->
                 f.status?.let { params["status"] = "eq.${it.name}" }
@@ -35,25 +36,25 @@ class InvoiceApiImpl(
                 }
                 f.searchQuery?.let { params["or"] = "(invoice_number.ilike.*$it*,customer.name.ilike.*$it*)" }
             }
-            
+
             // Call Supabase REST API
             val invoices: List<Invoice> = client.get("rest/v1/invoices", params)
-            
+
             // Get total count for pagination (separate query)
             val countParams = params.filterKeys { it != "offset" && it != "limit" && it != "select" }
                 .toMutableMap().apply { put("select", "count") }
             val countResponse: List<Map<String, Int>> = client.get("rest/v1/invoices", countParams)
             val total = countResponse.firstOrNull()?.get("count") ?: 0
-            
+
             ApiResponse.success(
                 PaginatedResponse(
                     data = invoices,
                     pagination = PaginationInfo(
                         page = page,
                         limit = limit,
-                        total = total
-                    )
-                )
+                        total = total,
+                    ),
+                ),
             )
         } catch (e: Exception) {
             ApiResponse.error("Failed to fetch invoices: ${e.message}")
@@ -64,12 +65,12 @@ class InvoiceApiImpl(
         return try {
             val params = mapOf(
                 "select" to "*,customer:customers(*),items:invoice_items(*)",
-                "id" to "eq.$id"
+                "id" to "eq.$id",
             )
-            
+
             val invoices: List<Invoice> = client.get("rest/v1/invoices", params)
             val invoice = invoices.firstOrNull()
-            
+
             if (invoice != null) {
                 ApiResponse.success(invoice)
             } else {
@@ -96,18 +97,18 @@ class InvoiceApiImpl(
                         "quantity" to item.quantity,
                         "unit_price" to item.unitPrice,
                         "notes" to item.notes,
-                        "product_id" to item.productId
+                        "product_id" to item.productId,
                     )
                 },
-                "metadata" to request.metadata
+                "metadata" to request.metadata,
             )
-            
+
             // Call backend function that creates invoice and calculates all totals
             val createdInvoice: Invoice = client.post(
-                "rest/v1/rpc/create_invoice", 
-                invoiceData
+                "rest/v1/rpc/create_invoice",
+                invoiceData,
             )
-            
+
             ApiResponse.success(createdInvoice)
         } catch (e: Exception) {
             ApiResponse.error("Failed to create invoice: ${e.message}")
@@ -118,7 +119,7 @@ class InvoiceApiImpl(
         return try {
             // Update invoice via backend function that recalculates everything
             val updateData = mutableMapOf<String, Any?>(
-                "invoice_id" to id
+                "invoice_id" to id,
             ).apply {
                 request.customerId?.let { put("customer_id", it) }
                 request.dueDate?.let { put("due_date", it) }
@@ -126,25 +127,28 @@ class InvoiceApiImpl(
                 request.termsAndConditions?.let { put("terms_and_conditions", it) }
                 request.paymentTerms?.let { put("payment_terms", it) }
                 request.items?.let { items ->
-                    put("items", items.map { item ->
-                        mapOf(
-                            "description" to item.description,
-                            "quantity" to item.quantity,
-                            "unit_price" to item.unitPrice,
-                            "notes" to item.notes,
-                            "product_id" to item.productId
-                        )
-                    })
+                    put(
+                        "items",
+                        items.map { item ->
+                            mapOf(
+                                "description" to item.description,
+                                "quantity" to item.quantity,
+                                "unit_price" to item.unitPrice,
+                                "notes" to item.notes,
+                                "product_id" to item.productId,
+                            )
+                        },
+                    )
                 }
                 request.metadata?.let { put("metadata", it) }
             }
-            
+
             // Call backend function that updates and recalculates
             val updatedInvoice: Invoice = client.post(
                 "rest/v1/rpc/update_invoice",
-                updateData
+                updateData,
             )
-            
+
             ApiResponse.success(updatedInvoice)
         } catch (e: Exception) {
             ApiResponse.error("Failed to update invoice: ${e.message}")
@@ -154,11 +158,11 @@ class InvoiceApiImpl(
     override suspend fun deleteInvoice(id: String): ApiResponse<Unit> {
         return try {
             val params = mapOf("id" to "eq.$id")
-            
+
             // Soft delete - update status to CANCELLED
             val updateData = mapOf("status" to "CANCELLED")
             client.post<Unit, Map<String, String>>("rest/v1/invoices", updateData, params)
-            
+
             ApiResponse.success(Unit)
         } catch (e: Exception) {
             ApiResponse.error("Failed to delete invoice: ${e.message}")
@@ -174,15 +178,15 @@ class InvoiceApiImpl(
                 "subject" to request.subject,
                 "message" to request.message,
                 "attach_pdf" to request.attachPdf,
-                "schedule_datetime" to request.scheduleDateTime
+                "schedule_datetime" to request.scheduleDateTime,
             )
-            
+
             // Call backend function that sends email and updates status
             val sentInvoice: Invoice = client.post(
                 "rest/v1/rpc/send_invoice",
-                sendData
+                sendData,
             )
-            
+
             ApiResponse.success(sentInvoice)
         } catch (e: Exception) {
             ApiResponse.error("Failed to send invoice: ${e.message}")
@@ -199,15 +203,15 @@ class InvoiceApiImpl(
                 "payment_date" to request.paymentDate,
                 "payment_method" to request.paymentMethod,
                 "reference" to request.reference,
-                "notes" to request.notes
+                "notes" to request.notes,
             )
-            
+
             // Call backend function that records payment and recalculates invoice
             val updatedInvoice: Invoice = client.post(
                 "rest/v1/rpc/record_payment",
-                paymentData
+                paymentData,
             )
-            
+
             ApiResponse.success(updatedInvoice)
         } catch (e: Exception) {
             ApiResponse.error("Failed to record payment: ${e.message}")
@@ -218,37 +222,25 @@ class InvoiceApiImpl(
         return try {
             // Duplicate invoice via backend function that creates copy with new number
             val duplicateData = mapOf("invoice_id" to id)
-            
+
             // Call backend function that duplicates invoice with new invoice number
             val duplicatedInvoice: Invoice = client.post(
                 "rest/v1/rpc/duplicate_invoice",
-                duplicateData
+                duplicateData,
             )
-            
+
             ApiResponse.success(duplicatedInvoice)
         } catch (e: Exception) {
             ApiResponse.error("Failed to duplicate invoice: ${e.message}")
         }
     }
 
-    override suspend fun getInvoiceSummary(dateRange: DateRange?): ApiResponse<InvoiceSummary> {
+    override suspend fun patchInvoice(id: String, request: PatchInvoiceRequest): ApiResponse<Invoice> {
         return try {
-            // Get invoice summary via backend aggregation function
-            val params = mutableMapOf<String, String?>()
-            dateRange?.let {
-                params["start_date"] = it.start
-                params["end_date"] = it.end
-            }
-            
-            // Call backend function that calculates all summary metrics
-            val summary: InvoiceSummary = client.post(
-                "rest/v1/rpc/get_invoice_summary",
-                params
-            )
-            
-            ApiResponse.success(summary)
+            // TODO: Implement PATCH invoice
+            ApiResponse.error("Patch invoice not implemented")
         } catch (e: Exception) {
-            ApiResponse.error("Failed to fetch invoice summary: ${e.message}")
+            ApiResponse.error("Failed to patch invoice: ${e.message}")
         }
     }
 
@@ -260,15 +252,15 @@ class InvoiceApiImpl(
                 "template" to options.template,
                 "include_payment_stub" to options.includePaymentStub,
                 "watermark" to options.watermark,
-                "locale" to options.locale
+                "locale" to options.locale,
             )
-            
+
             // Call backend function that generates PDF and returns download URL
             val pdfResponse: PdfResponse = client.post(
                 "rest/v1/rpc/generate_invoice_pdf",
-                pdfData
+                pdfData,
             )
-            
+
             ApiResponse.success(pdfResponse)
         } catch (e: Exception) {
             ApiResponse.error("Failed to generate PDF: ${e.message}")
@@ -280,15 +272,15 @@ class InvoiceApiImpl(
             // Convert invoice to template via backend function
             val templateData = mapOf(
                 "invoice_id" to id,
-                "template_name" to templateName
+                "template_name" to templateName,
             )
-            
+
             // Call backend function that creates template from invoice
             val template: InvoiceTemplate = client.post(
                 "rest/v1/rpc/convert_to_template",
-                templateData
+                templateData,
             )
-            
+
             ApiResponse.success(template)
         } catch (e: Exception) {
             ApiResponse.error("Failed to convert to template: ${e.message}")
@@ -303,15 +295,15 @@ class InvoiceApiImpl(
                 "customer_id" to request.customerId,
                 "due_date" to request.dueDate,
                 "notes" to request.notes,
-                "customizations" to request.customizations
+                "customizations" to request.customizations,
             )
-            
+
             // Call backend function that creates invoice from template
             val createdInvoice: Invoice = client.post(
                 "rest/v1/rpc/create_from_template",
-                invoiceData
+                invoiceData,
             )
-            
+
             ApiResponse.success(createdInvoice)
         } catch (e: Exception) {
             ApiResponse.error("Failed to create from template: ${e.message}")

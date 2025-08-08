@@ -1,0 +1,106 @@
+package za.co.quantive.app.testing
+
+import io.mockk.clearAllMocks
+import io.mockk.mockk
+import za.co.quantive.app.auth.AuthService
+import za.co.quantive.app.core.cache.SimpleCache
+import za.co.quantive.app.data.remote.SupabaseClient
+import za.co.quantive.app.data.remote.api.AnalyticsRpc
+import za.co.quantive.app.data.remote.api.InvoiceApi
+import za.co.quantive.app.data.remote.api.ContactApi
+import za.co.quantive.app.data.remote.repository.BackendInvoiceRepository
+import za.co.quantive.app.data.remote.repository.BackendContactRepository
+import za.co.quantive.app.data.remote.repository.InvoiceCache
+import za.co.quantive.app.data.remote.repository.ContactCache
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+
+/**
+ * Base class for integration tests
+ * Provides realistic service integration scenarios with proper dependency setup
+ */
+abstract class IntegrationTestBase : BaseTest() {
+
+    // Core Infrastructure
+    protected lateinit var mockSupabaseClient: SupabaseClient
+    protected lateinit var cache: SimpleCache
+    
+    // Services
+    protected lateinit var authService: AuthService
+    
+    // APIs
+    protected lateinit var mockInvoiceApi: InvoiceApi
+    protected lateinit var mockContactApi: ContactApi
+    protected lateinit var mockAnalyticsRpc: AnalyticsRpc
+    
+    // Caches
+    protected lateinit var mockInvoiceCache: InvoiceCache
+    protected lateinit var mockContactCache: ContactCache
+    
+    // Repositories
+    protected lateinit var invoiceRepository: BackendInvoiceRepository
+    protected lateinit var contactRepository: BackendContactRepository
+
+    @BeforeTest
+    override fun setUp() {
+        super.setUp()
+        setupInfrastructure()
+        setupServices()
+        setupApis()
+        setupCaches()
+        setupRepositories()
+    }
+
+    @AfterTest
+    override fun tearDown() {
+        clearAllMocks()
+        super.tearDown()
+    }
+
+    private fun setupInfrastructure() {
+        mockSupabaseClient = mockk()
+        cache = SimpleCache()
+    }
+
+    private fun setupServices() {
+        authService = AuthService(mockSupabaseClient)
+    }
+
+    private fun setupApis() {
+        mockInvoiceApi = mockk()
+        mockContactApi = mockk()
+        mockAnalyticsRpc = mockk()
+    }
+
+    private fun setupCaches() {
+        mockInvoiceCache = mockk(relaxed = true)
+        mockContactCache = mockk(relaxed = true)
+    }
+
+    private fun setupRepositories() {
+        invoiceRepository = BackendInvoiceRepository(mockInvoiceApi, mockInvoiceCache)
+        contactRepository = BackendContactRepository(mockContactApi, mockContactCache)
+    }
+
+    /**
+     * Create realistic test scenarios
+     */
+    protected fun createAuthenticatedTestScenario(): TestScenario {
+        return TestScenario(
+            session = MockFactory.createTestSession(),
+            invoiceRepository = invoiceRepository,
+            contactRepository = contactRepository,
+            authService = authService
+        )
+    }
+
+    /**
+     * Test scenario encapsulating common integration test setup
+     */
+    data class TestScenario(
+        val session: za.co.quantive.app.auth.Session,
+        val invoiceRepository: BackendInvoiceRepository,
+        val contactRepository: BackendContactRepository,
+        val authService: AuthService,
+    )
+}

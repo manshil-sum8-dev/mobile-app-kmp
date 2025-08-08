@@ -1,0 +1,211 @@
+package za.co.quantive.app.auth.security
+
+import za.co.quantive.app.security.CertificatePinning
+import kotlin.test.*
+
+/**
+ * Unit tests for CertificatePinning security configuration
+ */
+class CertificatePinningTest {
+
+    @Test
+    fun `shouldEnablePinning should return false for localhost URLs`() {
+        // Given
+        val localhostUrls = listOf(
+            "http://localhost:3000",
+            "https://localhost:3000",
+            "http://localhost:8080/api",
+            "https://localhost",
+        )
+
+        // When & Then
+        localhostUrls.forEach { url ->
+            assertFalse(
+                CertificatePinning.shouldEnablePinning(url),
+                "Certificate pinning should be disabled for localhost URL: $url",
+            )
+        }
+    }
+
+    @Test
+    fun `shouldEnablePinning should return false for local IP addresses`() {
+        // Given
+        val localIpUrls = listOf(
+            "http://127.0.0.1:3000",
+            "https://127.0.0.1:8080",
+            "http://10.0.2.2:54321", // Android emulator
+            "https://10.0.2.2:54321",
+        )
+
+        // When & Then
+        localIpUrls.forEach { url ->
+            assertFalse(
+                CertificatePinning.shouldEnablePinning(url),
+                "Certificate pinning should be disabled for local IP URL: $url",
+            )
+        }
+    }
+
+    @Test
+    fun `shouldEnablePinning should return false for local domain URLs`() {
+        // Given
+        val localDomainUrls = listOf(
+            "http://api.local",
+            "https://test.local",
+            "http://dev.local:3000",
+        )
+
+        // When & Then
+        localDomainUrls.forEach { url ->
+            assertFalse(
+                CertificatePinning.shouldEnablePinning(url),
+                "Certificate pinning should be disabled for .local domain URL: $url",
+            )
+        }
+    }
+
+    @Test
+    fun `shouldEnablePinning should return true for production URLs`() {
+        // Given
+        val productionUrls = listOf(
+            "https://api.supabase.co",
+            "https://myproject.supabase.io",
+            "https://production-api.com",
+            "https://api.example.com/v1",
+        )
+
+        // When & Then
+        productionUrls.forEach { url ->
+            assertTrue(
+                CertificatePinning.shouldEnablePinning(url),
+                "Certificate pinning should be enabled for production URL: $url",
+            )
+        }
+    }
+
+    @Test
+    fun `getPinsForHost should return Supabase pins for Supabase domains`() {
+        // Given
+        val supabaseHosts = listOf(
+            "myproject.supabase.co",
+            "api.supabase.co",
+            "myproject.supabase.io",
+            "dashboard.supabase.io",
+        )
+
+        // When & Then
+        supabaseHosts.forEach { host ->
+            val pins = CertificatePinning.getPinsForHost(host)
+            assertEquals(
+                CertificatePinning.supabasePins,
+                pins,
+                "Should return Supabase pins for host: $host",
+            )
+        }
+    }
+
+    @Test
+    fun `getPinsForHost should return empty list for non-Supabase domains`() {
+        // Given
+        val otherHosts = listOf(
+            "api.example.com",
+            "localhost",
+            "127.0.0.1",
+            "google.com",
+            "github.com",
+        )
+
+        // When & Then
+        otherHosts.forEach { host ->
+            val pins = CertificatePinning.getPinsForHost(host)
+            assertTrue(
+                pins.isEmpty(),
+                "Should return empty pins for non-Supabase host: $host",
+            )
+        }
+    }
+
+    @Test
+    fun `supabasePins should not be empty`() {
+        // When
+        val pins = CertificatePinning.supabasePins
+
+        // Then
+        assertFalse(pins.isEmpty(), "Supabase pins should not be empty")
+        assertTrue(pins.size >= 2, "Should have at least primary and backup certificate pins")
+    }
+
+    @Test
+    fun `supabasePins should have valid SHA256 format`() {
+        // When
+        val pins = CertificatePinning.supabasePins
+
+        // Then
+        pins.forEach { pin ->
+            assertTrue(
+                pin.startsWith("sha256/"),
+                "Pin should start with 'sha256/': $pin",
+            )
+            assertTrue(
+                pin.length > 10,
+                "Pin should have reasonable length: $pin",
+            )
+        }
+    }
+
+    @Test
+    fun `certificate pinning should be case insensitive for URL checking`() {
+        // Given
+        val urls = listOf(
+            "https://API.SUPABASE.CO",
+            "https://MyProject.Supabase.IO",
+            "http://LOCALHOST:3000",
+            "https://127.0.0.1:8080",
+        )
+
+        // When & Then
+        assertTrue(CertificatePinning.shouldEnablePinning("https://API.SUPABASE.CO"))
+        assertFalse(CertificatePinning.shouldEnablePinning("http://LOCALHOST:3000"))
+    }
+
+    @Test
+    fun `getPinsForHost should be case insensitive`() {
+        // Given
+        val hostVariations = listOf(
+            "myproject.supabase.co",
+            "MyProject.Supabase.Co",
+            "MYPROJECT.SUPABASE.CO",
+        )
+
+        // When & Then
+        hostVariations.forEach { host ->
+            val pins = CertificatePinning.getPinsForHost(host)
+            assertEquals(
+                CertificatePinning.supabasePins,
+                pins,
+                "Should return pins regardless of case for host: $host",
+            )
+        }
+    }
+
+    @Test
+    fun `should handle edge cases gracefully`() {
+        // Given
+        val edgeCases = listOf(
+            "",
+            " ",
+            "not-a-url",
+            "http://",
+            "https://",
+            "ftp://example.com",
+        )
+
+        // When & Then - Should not throw exceptions
+        edgeCases.forEach { url ->
+            assertDoesNotThrow("Should handle edge case gracefully: '$url'") {
+                CertificatePinning.shouldEnablePinning(url)
+                CertificatePinning.getPinsForHost(url)
+            }
+        }
+    }
+}

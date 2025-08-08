@@ -29,23 +29,47 @@ This is a Kotlin Multiplatform mobile application (Quantive) targeting Android a
 - `make supa-migrate` - Run migrations
 - `make supa-diff name=MSG` - Create migration diff
 
+### Feature Scaffolding Commands (PRIMARY DEVELOPMENT TOOL)
+- `make scaffold-feature` - Interactive feature creation wizard (RECOMMENDED)
+- `./gradlew scaffoldFeature --no-daemon` - Interactive wizard (direct Gradle)
+- `./gradlew createFeature -PfeatureName=FeatureName -PfeatureType=crud` - Direct feature creation
+- Configuration cache warnings can be ignored - functionality works correctly
+
 ### Test Commands
 - `./gradlew test` - Run tests (basic Kotlin test support available)
 
 ## Architecture
 
+### **⚠️ CRITICAL: Enterprise Development Standards**
+**ALL development MUST follow the comprehensive blueprint at `docs/blueprint.md`**
+
+This project follows **Enterprise-Grade KMP Development Standards** with strict enforcement of:
+- **SOLID, DRY, KISS, YAGNI** principles with zero tolerance for over-engineering
+- **Backend-Driven Architecture** with smart TTL-based caching (NOT offline-first)
+- **Material 3 Expressive** design system with platform adaptations
+- **Security Standards** with SecureStorage expect/actual and certificate pinning
+- **Performance Requirements** < 2s cold start, 60fps UI, < 100MB memory baseline
+- **Testing Standards** 80%+ shared test coverage with screenshot regression
+- **Quality Gates** ktlint + detekt with KMP-specific rules (zero warnings)
+
 ### Project Structure
 - **composeApp/**: Main multiplatform module containing shared business logic and UI
-  - **commonMain/**: Shared code across all platforms
+  - **commonMain/**: Shared code across all platforms (70% of test coverage here)
   - **androidMain/**: Android-specific implementations
   - **iosMain/**: iOS-specific implementations
   - **commonTest/**: Shared test code
 
 ### Key Architecture Patterns
-- **Clean Architecture**: Domain layer with repositories, use cases, and data sources
-- **Repository Pattern**: Data layer abstraction with local/remote implementations
-- **Manual Dependency Injection**: Using `AppServices` object for service management
-- **Session Management**: Token-based auth with secure storage per platform
+- **Clean Architecture + Backend-Driven**: Domain layer with backend-first repositories
+- **Repository Pattern**: API-first with strategic TTL-based caching for performance
+- **Smart Caching Strategy**: Performance optimization (NOT offline capability)
+  - User Data: 5min TTL
+  - Configuration: 30min TTL  
+  - Static Content: 24hr TTL
+  - Session Data: In-memory only
+- **Manual Dependency Injection**: Using `AppServices` object (transitioning to Koin)
+- **Session Management**: Token-based auth with platform-specific secure storage
+- **REST vs RPC Pattern**: CRUD operations use REST APIs, heavy computations use RPC
 
 ### Core Components
 
@@ -105,14 +129,68 @@ This is a Kotlin Multiplatform mobile application (Quantive) targeting Android a
 
 ## Common Tasks
 
-### Adding New Features
-1. Define domain models in `domain/` package
-2. Create repository interface in domain layer
-3. Implement repository in `data/remote/` with Supabase integration
-4. Add service to `AppServices` for DI
-5. Create use cases if complex business logic is needed
+### Adding New Features (**USE SCAFFOLDING FIRST**)
+**ALWAYS use feature scaffolding system before manual implementation:**
+1. **Run scaffolding**: `./gradlew createFeature` - Interactive wizard will generate complete feature structure
+2. **Manual steps** (only if scaffolding doesn't cover specific needs):
+   - Define domain models in `domain/` package  
+   - Create repository interface in domain layer
+   - Implement repository in `data/remote/` with Supabase integration
+   - Add service to `AppServices` for DI
+   - Create use cases if complex business logic is needed
+
+**Feature scaffolding generates**:
+- Complete Clean Architecture structure (domain/data/presentation layers)
+- Repository pattern with REST/RPC API separation  
+- ViewModel with MVI pattern
+- Compose UI screens with Material 3 components
+- Unit test templates with MockK setup
+- Integration with dependency injection
 
 ### Database Changes
 1. Create migration using `make supa-diff name="description"`
 2. Test migration with `make supa-reset`
 3. Update repository implementations as needed
+
+## ⚠️ CRITICAL VIOLATIONS - MUST BE FIXED
+
+### Current Architecture Violations
+**The current state violates several enterprise requirements:**
+
+#### 🚨 **Smart Caching DISABLED** - Major Violation
+- `SimpleCache.kt.disabled` due to compilation issues
+- Using no-op placeholder cache implementations
+- **Impact**: Cannot achieve 50ms response time requirement
+- **Fix Required**: Resolve kotlinx.serialization issues and re-enable TTL caching
+
+#### 🚨 **Missing Analytics RPC Implementation**
+- `BackendAnalyticsRepository.kt.disabled`
+- Heavy computation pattern not implemented
+- **Violates**: REST vs RPC separation requirement
+- **Fix Required**: Complete analytics RPC implementation
+
+#### 🚨 **Incomplete API Implementations**
+- Multiple endpoints return `ApiResponse.error("Not implemented")`
+- **Violates**: Backend-driven architecture pattern
+- **Fix Required**: Implement all API endpoints with Supabase integration
+
+#### ⚠️ **Missing Quality Gates**
+- No ktlint configuration
+- No detekt with KMP-specific rules
+- No pre-commit hooks
+- **Fix Required**: Add all quality enforcement mechanisms per blueprint
+
+#### ⚠️ **Missing Testing Infrastructure**  
+- No screenshot testing setup (Shot library)
+- Missing structured testing templates
+- No 80%+ coverage enforcement
+- **Fix Required**: Implement comprehensive testing strategy
+
+### Next Steps to Achieve Compliance
+1. **Fix caching infrastructure** - Top priority for performance requirements
+2. **Implement analytics RPC** - Complete heavy computation pattern  
+3. **Add quality gates** - ktlint, detekt, pre-commit hooks
+4. **Setup testing infrastructure** - Shot, structured templates, coverage
+5. **Complete API implementations** - All endpoints must work with Supabase backend
+
+**All development must pause until these critical violations are resolved.**

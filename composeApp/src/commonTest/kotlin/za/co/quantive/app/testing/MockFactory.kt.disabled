@@ -1,0 +1,209 @@
+package za.co.quantive.app.testing
+
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import za.co.quantive.app.auth.Session
+import za.co.quantive.app.data.remote.SupabaseClient
+import za.co.quantive.app.data.remote.api.ApiResponse
+import za.co.quantive.app.domain.entities.BusinessContact
+import za.co.quantive.app.domain.entities.BackendInvoice
+
+/**
+ * Factory for creating test doubles and test data
+ * Provides consistent test data across all test suites
+ */
+object MockFactory {
+
+    /**
+     * Create a fake SupabaseClient for testing
+     */
+    fun createFakeSupabaseClient(): FakeSupabaseClient = FakeSupabaseClient()
+
+    /**
+     * Clear all test state - call in tearDown
+     */
+    fun clearMocks() {
+        // No-op for fake implementations
+    }
+
+    // Test Data Builders
+    
+    /**
+     * Create test Session data
+     */
+    fun createTestSession(
+        accessToken: String = "test_access_token",
+        refreshToken: String = "test_refresh_token",
+        expiresAt: Long = 9999999999L, // Far future
+        userId: String = "test_user_id",
+    ) = Session(
+        accessToken = accessToken,
+        refreshToken = refreshToken,
+        expiresAt = expiresAt,
+        userId = userId,
+    )
+
+    /**
+     * Create test JsonObject responses for auth endpoints
+     */
+    fun createAuthSuccessResponse(
+        accessToken: String = "test_access_token",
+        refreshToken: String = "test_refresh_token",
+        expiresIn: Long = 3600L,
+        userId: String = "test_user_id",
+    ): JsonObject = buildJsonObject {
+        put("access_token", JsonPrimitive(accessToken))
+        put("refresh_token", JsonPrimitive(refreshToken))
+        put("expires_in", JsonPrimitive(expiresIn))
+        put("expires_at", JsonPrimitive(System.currentTimeMillis() / 1000L + expiresIn))
+        put("user", buildJsonObject {
+            put("id", JsonPrimitive(userId))
+            put("email", JsonPrimitive("test@example.com"))
+        })
+    }
+
+    /**
+     * Create test error response
+     */
+    fun createAuthErrorResponse(
+        error: String = "invalid_credentials",
+        errorDescription: String = "Invalid email or password",
+    ): JsonObject = buildJsonObject {
+        put("error", JsonPrimitive(error))
+        put("error_description", JsonPrimitive(errorDescription))
+    }
+
+    /**
+     * Create test BusinessContact
+     */
+    fun createTestBusinessContact(
+        id: String = "contact_1",
+        name: String = "Test Contact",
+        email: String = "contact@test.com",
+        phone: String = "+1234567890",
+    ) = BusinessContact(
+        id = id,
+        name = name,
+        email = email,
+        phone = phone,
+    )
+
+    /**
+     * Create test BackendInvoice
+     */
+    fun createTestBackendInvoice(
+        id: String = "invoice_1",
+        contactId: String = "contact_1",
+        amount: Double = 100.0,
+        status: String = "pending",
+    ) = BackendInvoice(
+        id = id,
+        contactId = contactId,
+        amount = amount,
+        status = status,
+    )
+
+    /**
+     * Create successful ApiResponse
+     */
+    fun <T> createSuccessApiResponse(data: T): ApiResponse<T> = 
+        ApiResponse.success(data)
+
+    /**
+     * Create error ApiResponse
+     */
+    fun <T> createErrorApiResponse(message: String): ApiResponse<T> = 
+        ApiResponse.error(message)
+
+    /**
+     * Create test analytics data
+     */
+    fun createTestAnalyticsData(): Map<String, Any> = mapOf(
+        "totalRevenue" to 50000.0,
+        "totalInvoices" to 150,
+        "pendingInvoices" to 25,
+        "completedInvoices" to 125,
+        "averageInvoiceValue" to 333.33,
+    )
+}
+
+/**
+ * Fake SupabaseClient implementation for testing
+ * Allows configuring responses for different endpoints
+ */
+class FakeSupabaseClient : SupabaseClient {
+    private var nextResponse: Any? = null
+    private var nextException: Throwable? = null
+    
+    private val callHistory = mutableListOf<FakeCall>()
+    
+    data class FakeCall(
+        val method: String,
+        val path: String,
+        val body: Any?
+    )
+    
+    /**
+     * Configure the next response to return
+     */
+    fun setNextResponse(response: Any) {
+        nextResponse = response
+        nextException = null
+    }
+    
+    /**
+     * Configure the next call to throw an exception
+     */
+    fun setNextException(exception: Throwable) {
+        nextException = exception
+        nextResponse = null
+    }
+    
+    /**
+     * Get call history for verification
+     */
+    fun getCallHistory(): List<FakeCall> = callHistory.toList()
+    
+    /**
+     * Clear call history
+     */
+    fun clearHistory() {
+        callHistory.clear()
+    }
+    
+    override suspend fun <T, R> post(path: String, body: T): R {
+        callHistory.add(FakeCall("POST", path, body))
+        
+        nextException?.let { throw it }
+        
+        @Suppress("UNCHECKED_CAST")
+        return nextResponse as R ?: throw IllegalStateException("No response configured")
+    }
+    
+    override suspend fun <T> get(path: String): T {
+        callHistory.add(FakeCall("GET", path, null))
+        
+        nextException?.let { throw it }
+        
+        @Suppress("UNCHECKED_CAST")
+        return nextResponse as T ?: throw IllegalStateException("No response configured")
+    }
+    
+    override suspend fun <T, R> put(path: String, body: T): R {
+        callHistory.add(FakeCall("PUT", path, body))
+        
+        nextException?.let { throw it }
+        
+        @Suppress("UNCHECKED_CAST")
+        return nextResponse as R ?: throw IllegalStateException("No response configured")
+    }
+    
+    override suspend fun delete(path: String): Boolean {
+        callHistory.add(FakeCall("DELETE", path, null))
+        
+        nextException?.let { throw it }
+        
+        return nextResponse as? Boolean ?: true
+    }
+}

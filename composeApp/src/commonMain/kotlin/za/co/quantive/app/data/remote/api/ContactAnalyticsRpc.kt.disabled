@@ -1,0 +1,104 @@
+package za.co.quantive.app.data.remote.api
+
+import za.co.quantive.app.domain.entities.*
+
+/**
+ * RPC functions for heavy computational operations on contacts
+ * Complex analytics and business intelligence operations
+ */
+interface ContactAnalyticsRpc {
+    
+    /**
+     * RPC: Get comprehensive contact analytics and summary
+     */
+    suspend fun getContactSummary(dateRange: DateRange? = null): ApiResponse<ContactSummary>
+    
+    /**
+     * RPC: Generate contact analytics report
+     */
+    suspend fun generateContactReport(request: ContactReportRequest): ApiResponse<ContactReportResponse>
+    
+    /**
+     * RPC: Analyze customer behavior patterns
+     */
+    suspend fun analyzeCustomerBehavior(request: CustomerBehaviorRequest): ApiResponse<CustomerBehaviorAnalytics>
+    
+    /**
+     * RPC: Generate supplier performance analytics
+     */
+    suspend fun analyzeSupplierPerformance(request: SupplierAnalyticsRequest): ApiResponse<SupplierPerformanceReport>
+    
+    /**
+     * RPC: Process bulk contact operations
+     */
+    suspend fun processBulkContacts(request: BulkContactRequest): ApiResponse<BulkContactResponse>
+}
+
+// === RPC REQUEST/RESPONSE MODELS ===
+
+@kotlinx.serialization.Serializable
+data class ContactReportRequest(
+    val contactIds: List<String>? = null,
+    val type: ContactType? = null,
+    val dateRange: DateRange? = null,
+    val includeInvoiceHistory: Boolean = true,
+    val includePaymentHistory: Boolean = true,
+    val format: ReportFormat = ReportFormat.PDF
+)
+
+@kotlinx.serialization.Serializable
+data class CustomerBehaviorRequest(
+    val customerId: String? = null,
+    val dateRange: DateRange? = null,
+    val includeProjections: Boolean = false
+)
+
+@kotlinx.serialization.Serializable
+data class SupplierAnalyticsRequest(
+    val supplierId: String? = null,
+    val dateRange: DateRange? = null,
+    val includeCostAnalysis: Boolean = true
+)
+
+@kotlinx.serialization.Serializable
+data class BulkContactRequest(
+    val operation: ContactBulkOperation,
+    val contactIds: List<String>,
+    val parameters: Map<String, String> = emptyMap()
+)
+
+@kotlinx.serialization.Serializable
+data class ContactReportResponse(
+    val reportUrl: String,
+    val filename: String,
+    val contactCount: Int,
+    val expiresAt: String
+)
+
+@kotlinx.serialization.Serializable
+data class CustomerBehaviorAnalytics(
+    val averageOrderValue: Double,
+    val orderFrequency: Double,
+    val paymentBehavior: PaymentBehaviorMetrics,
+    val trends: List<CustomerTrend>,
+    val projections: CustomerProjections?
+)
+
+@kotlinx.serialization.Serializable
+data class SupplierPerformanceReport(
+    val averagePaymentTerm: Int,
+    val onTimeDeliveryRate: Double,
+    val costTrends: List<CostTrend>,
+    val reliabilityScore: Double
+)
+
+@kotlinx.serialization.Serializable
+data class BulkContactResponse(
+    val processedCount: Int,
+    val failedCount: Int,
+    val errors: List<BulkOperationError>
+)
+
+enum class ContactBulkOperation {
+    ACTIVATE, DEACTIVATE, DELETE, EXPORT, TAG, UNTAG
+}

@@ -2,33 +2,58 @@ package za.co.quantive.app.data.remote.repository
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import za.co.quantive.app.data.remote.api.AnalyticsApi
-import za.co.quantive.app.data.remote.api.*
-import za.co.quantive.app.data.local.AnalyticsCacheImpl
-import za.co.quantive.app.domain.entities.DateRange
+import za.co.quantive.app.core.cache.CacheTTL
+import za.co.quantive.app.core.cache.SimpleCache
+import za.co.quantive.app.data.remote.api.AnalyticsRpc
+import za.co.quantive.app.data.remote.api.BusinessMetrics
+import za.co.quantive.app.data.remote.api.CustomerAnalytics
+import za.co.quantive.app.data.remote.api.DashboardOverview
+import za.co.quantive.app.data.remote.api.MetricGranularity
+import za.co.quantive.app.data.remote.api.PaymentAnalytics
+import za.co.quantive.app.data.remote.api.RevenueAnalytics
+import za.co.quantive.app.data.remote.api.TaxAnalytics
+import za.co.quantive.app.domain.shared.DateRange
+import za.co.quantive.app.domain.shared.ExportFormat
+import za.co.quantive.app.domain.shared.ExportResponse
+import za.co.quantive.app.domain.shared.ReportType
 
-// Add the interface definition here for now
+/**
+ * Analytics cache interface
+ */
 interface AnalyticsCache {
     suspend fun getDashboardOverview(dateRange: DateRange?): DashboardOverview?
     suspend fun saveDashboardOverview(overview: DashboardOverview, dateRange: DateRange?)
-    
+
     suspend fun getBusinessMetrics(dateRange: DateRange?, granularity: MetricGranularity): BusinessMetrics?
     suspend fun saveBusinessMetrics(metrics: BusinessMetrics, dateRange: DateRange?, granularity: MetricGranularity)
-    
+
     suspend fun getRevenueAnalytics(dateRange: DateRange?): RevenueAnalytics?
     suspend fun saveRevenueAnalytics(analytics: RevenueAnalytics, dateRange: DateRange?)
-    
+
     suspend fun getCustomerAnalytics(dateRange: DateRange?): CustomerAnalytics?
     suspend fun saveCustomerAnalytics(analytics: CustomerAnalytics, dateRange: DateRange?)
-    
+
     suspend fun getPaymentAnalytics(dateRange: DateRange?): PaymentAnalytics?
     suspend fun savePaymentAnalytics(analytics: PaymentAnalytics, dateRange: DateRange?)
-    
+
     suspend fun getTaxAnalytics(dateRange: DateRange?): TaxAnalytics?
     suspend fun saveTaxAnalytics(analytics: TaxAnalytics, dateRange: DateRange?)
-    
+
     suspend fun clearCache()
     suspend fun clearExpiredCache()
+}
+
+/**
+ * Backend-driven analytics repository interface
+ */
+interface AnalyticsRepository {
+    suspend fun getDashboardOverview(dateRange: DateRange? = null, forceRefresh: Boolean = false): Flow<Result<DashboardOverview>>
+    suspend fun getBusinessMetrics(dateRange: DateRange? = null, granularity: MetricGranularity = MetricGranularity.MONTHLY): Result<BusinessMetrics>
+    suspend fun getRevenueAnalytics(dateRange: DateRange? = null): Result<RevenueAnalytics>
+    suspend fun getCustomerAnalytics(dateRange: DateRange? = null): Result<CustomerAnalytics>
+    suspend fun getPaymentAnalytics(dateRange: DateRange? = null): Result<PaymentAnalytics>
+    suspend fun getTaxAnalytics(dateRange: DateRange? = null): Result<TaxAnalytics>
+    suspend fun exportBusinessReport(reportType: ReportType, dateRange: DateRange, format: ExportFormat = ExportFormat.PDF): Result<ExportResponse>
 }
 
 /**
@@ -36,8 +61,8 @@ interface AnalyticsCache {
  * All business metrics, calculations, and insights provided by backend
  */
 class BackendAnalyticsRepository(
-    private val api: AnalyticsApi,
-    private val cache: AnalyticsCache
+    private val rpc: AnalyticsRpc,
+    private val cache: AnalyticsCache,
 ) : AnalyticsRepository {
 
     /**
@@ -45,7 +70,7 @@ class BackendAnalyticsRepository(
      */
     override suspend fun getDashboardOverview(
         dateRange: DateRange?,
-        forceRefresh: Boolean
+        forceRefresh: Boolean,
     ): Flow<Result<DashboardOverview>> = flow {
         try {
             // Emit cached data first for better UX
@@ -57,7 +82,7 @@ class BackendAnalyticsRepository(
             }
 
             // Fetch fresh data from backend
-            val response = api.getDashboardOverview(dateRange)
+            val response = rpc.getDashboardOverview(dateRange)
             if (response.isSuccess()) {
                 val overview = response.data!!
                 cache.saveDashboardOverview(overview, dateRange)
@@ -83,10 +108,10 @@ class BackendAnalyticsRepository(
      */
     override suspend fun getBusinessMetrics(
         dateRange: DateRange?,
-        granularity: MetricGranularity
+        granularity: MetricGranularity,
     ): Result<BusinessMetrics> {
         return try {
-            val response = api.getBusinessMetrics(dateRange, granularity)
+            val response = rpc.getBusinessMetrics(dateRange, granularity)
             if (response.isSuccess()) {
                 val metrics = response.data!!
                 cache.saveBusinessMetrics(metrics, dateRange, granularity)
@@ -110,7 +135,7 @@ class BackendAnalyticsRepository(
      */
     override suspend fun getRevenueAnalytics(dateRange: DateRange?): Result<RevenueAnalytics> {
         return try {
-            val response = api.getRevenueAnalytics(dateRange)
+            val response = rpc.getRevenueAnalytics(dateRange)
             if (response.isSuccess()) {
                 val analytics = response.data!!
                 cache.saveRevenueAnalytics(analytics, dateRange)
@@ -133,7 +158,7 @@ class BackendAnalyticsRepository(
      */
     override suspend fun getCustomerAnalytics(dateRange: DateRange?): Result<CustomerAnalytics> {
         return try {
-            val response = api.getCustomerAnalytics(dateRange)
+            val response = rpc.getCustomerAnalytics(dateRange)
             if (response.isSuccess()) {
                 val analytics = response.data!!
                 cache.saveCustomerAnalytics(analytics, dateRange)
@@ -156,7 +181,7 @@ class BackendAnalyticsRepository(
      */
     override suspend fun getPaymentAnalytics(dateRange: DateRange?): Result<PaymentAnalytics> {
         return try {
-            val response = api.getPaymentAnalytics(dateRange)
+            val response = rpc.getPaymentAnalytics(dateRange)
             if (response.isSuccess()) {
                 val analytics = response.data!!
                 cache.savePaymentAnalytics(analytics, dateRange)
@@ -179,7 +204,7 @@ class BackendAnalyticsRepository(
      */
     override suspend fun getTaxAnalytics(dateRange: DateRange?): Result<TaxAnalytics> {
         return try {
-            val response = api.getTaxAnalytics(dateRange)
+            val response = rpc.getTaxAnalytics(dateRange)
             if (response.isSuccess()) {
                 val analytics = response.data!!
                 cache.saveTaxAnalytics(analytics, dateRange)
@@ -203,10 +228,10 @@ class BackendAnalyticsRepository(
     override suspend fun exportBusinessReport(
         reportType: ReportType,
         dateRange: DateRange,
-        format: ExportFormat
+        format: ExportFormat,
     ): Result<ExportResponse> {
         return try {
-            val response = api.exportBusinessReport(reportType, dateRange, format)
+            val response = rpc.exportBusinessReport(reportType, dateRange, format)
             if (response.isSuccess()) {
                 Result.success(response.data!!)
             } else {
@@ -219,15 +244,82 @@ class BackendAnalyticsRepository(
 }
 
 /**
- * Backend-driven analytics repository interface
+ * Analytics cache implementation using SimpleCache
  */
-interface AnalyticsRepository {
-    suspend fun getDashboardOverview(dateRange: DateRange? = null, forceRefresh: Boolean = false): Flow<Result<DashboardOverview>>
-    suspend fun getBusinessMetrics(dateRange: DateRange? = null, granularity: MetricGranularity = MetricGranularity.MONTHLY): Result<BusinessMetrics>
-    suspend fun getRevenueAnalytics(dateRange: DateRange? = null): Result<RevenueAnalytics>
-    suspend fun getCustomerAnalytics(dateRange: DateRange? = null): Result<CustomerAnalytics>
-    suspend fun getPaymentAnalytics(dateRange: DateRange? = null): Result<PaymentAnalytics>
-    suspend fun getTaxAnalytics(dateRange: DateRange? = null): Result<TaxAnalytics>
-    suspend fun exportBusinessReport(reportType: ReportType, dateRange: DateRange, format: ExportFormat = ExportFormat.PDF): Result<ExportResponse>
-}
+class AnalyticsCacheImpl(
+    private val simpleCache: SimpleCache,
+) : AnalyticsCache {
 
+    override suspend fun getDashboardOverview(dateRange: DateRange?): DashboardOverview? {
+        val key = "dashboard_${dateRange?.hashCode() ?: "current"}"
+        return simpleCache.get(key)
+    }
+
+    override suspend fun saveDashboardOverview(overview: DashboardOverview, dateRange: DateRange?) {
+        val key = "dashboard_${dateRange?.hashCode() ?: "current"}"
+        simpleCache.put(key, overview, CacheTTL.CONFIG_DATA) // 30min TTL for dashboard
+    }
+
+    override suspend fun getBusinessMetrics(dateRange: DateRange?, granularity: MetricGranularity): BusinessMetrics? {
+        val key = "metrics_${dateRange?.hashCode() ?: "current"}_${granularity.name}"
+        return simpleCache.get(key)
+    }
+
+    override suspend fun saveBusinessMetrics(metrics: BusinessMetrics, dateRange: DateRange?, granularity: MetricGranularity) {
+        val key = "metrics_${dateRange?.hashCode() ?: "current"}_${granularity.name}"
+        simpleCache.put(key, metrics, CacheTTL.CONFIG_DATA)
+    }
+
+    override suspend fun getRevenueAnalytics(dateRange: DateRange?): RevenueAnalytics? {
+        val key = "revenue_${dateRange?.hashCode() ?: "current"}"
+        return simpleCache.get(key)
+    }
+
+    override suspend fun saveRevenueAnalytics(analytics: RevenueAnalytics, dateRange: DateRange?) {
+        val key = "revenue_${dateRange?.hashCode() ?: "current"}"
+        simpleCache.put(key, analytics, CacheTTL.CONFIG_DATA)
+    }
+
+    override suspend fun getCustomerAnalytics(dateRange: DateRange?): CustomerAnalytics? {
+        val key = "customer_${dateRange?.hashCode() ?: "current"}"
+        return simpleCache.get(key)
+    }
+
+    override suspend fun saveCustomerAnalytics(analytics: CustomerAnalytics, dateRange: DateRange?) {
+        val key = "customer_${dateRange?.hashCode() ?: "current"}"
+        simpleCache.put(key, analytics, CacheTTL.CONFIG_DATA)
+    }
+
+    override suspend fun getPaymentAnalytics(dateRange: DateRange?): PaymentAnalytics? {
+        val key = "payment_${dateRange?.hashCode() ?: "current"}"
+        return simpleCache.get(key)
+    }
+
+    override suspend fun savePaymentAnalytics(analytics: PaymentAnalytics, dateRange: DateRange?) {
+        val key = "payment_${dateRange?.hashCode() ?: "current"}"
+        simpleCache.put(key, analytics, CacheTTL.CONFIG_DATA)
+    }
+
+    override suspend fun getTaxAnalytics(dateRange: DateRange?): TaxAnalytics? {
+        val key = "tax_${dateRange?.hashCode() ?: "current"}"
+        return simpleCache.get(key)
+    }
+
+    override suspend fun saveTaxAnalytics(analytics: TaxAnalytics, dateRange: DateRange?) {
+        val key = "tax_${dateRange?.hashCode() ?: "current"}"
+        simpleCache.put(key, analytics, CacheTTL.CONFIG_DATA)
+    }
+
+    override suspend fun clearCache() {
+        simpleCache.invalidatePattern("dashboard*")
+        simpleCache.invalidatePattern("metrics*")
+        simpleCache.invalidatePattern("revenue*")
+        simpleCache.invalidatePattern("customer*")
+        simpleCache.invalidatePattern("payment*")
+        simpleCache.invalidatePattern("tax*")
+    }
+
+    override suspend fun clearExpiredCache() {
+        simpleCache.cleanup()
+    }
+}

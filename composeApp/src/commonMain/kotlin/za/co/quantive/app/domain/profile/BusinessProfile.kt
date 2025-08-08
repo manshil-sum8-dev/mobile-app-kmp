@@ -13,5 +13,5 @@ data class BusinessProfile(
     val brand_color: String? = null,
     val logo_path: String? = null,
     val created_at: String? = null,
-    val updated_at: String? = null
+    val updated_at: String? = null,
 )

@@ -1,14 +1,14 @@
 package za.co.quantive.app.data.remote
 
 import za.co.quantive.app.auth.Session
+import za.co.quantive.app.data.local.BusinessProfileLocal
 import za.co.quantive.app.domain.profile.BusinessProfile
 import za.co.quantive.app.domain.profile.BusinessProfileRepository
-import za.co.quantive.app.data.local.BusinessProfileLocal
 
 class BusinessProfileRepositoryImpl(
     private val local: BusinessProfileLocal,
     private val remote: BusinessProfileRemote,
-    private val sessionProvider: suspend () -> Session?
+    private val sessionProvider: suspend () -> Session?,
 ) : BusinessProfileRepository {
     override suspend fun get(): BusinessProfile? {
         // Try local first; if empty and session exists, fetch remote and cache
@@ -25,7 +25,9 @@ class BusinessProfileRepositoryImpl(
         val session = sessionProvider()
         return if (session != null) {
             remote.upsert(profile) ?: profile
-        } else profile
+        } else {
+            profile
+        }
     }
 
     override suspend fun sync(): BusinessProfile? {

@@ -1,0 +1,119 @@
+package za.co.quantive.app.core.cache
+
+import kotlinx.datetime.Clock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlin.time.Duration
+
+/**
+ * Simple in-memory cache for backend-first architecture
+ * Focuses on TTL-based caching without complex persistence
+ */
+class SimpleCache(
+    private val json: Json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+) {
+    private val cache = mutableMapOf<String, SimpleCacheEntry>()
+    
+    /**
+     * Store data in cache with TTL
+     */
+    fun <T> put(key: String, value: T, ttl: Duration) {
+        val entry = SimpleCacheEntry(
+            data = json.encodeToString(kotlinx.serialization.serializer<T>(), value),
+            timestamp = Clock.System.now().toEpochMilliseconds(),
+            ttl = ttl.inWholeMilliseconds
+        )
+        cache[key] = entry
+    }
+    
+    /**
+     * Retrieve data from cache
+     */
+    inline fun <reified T> get(key: String): T? {
+        val entry = cache[key] ?: return null
+        
+        return if (isExpired(entry)) {
+            cache.remove(key)
+            null
+        } else {
+            try {
+                json.decodeFromString(kotlinx.serialization.serializer<T>(), entry.data)
+            } catch (e: Exception) {
+                cache.remove(key) // Remove corrupted entry
+                null
+            }
+        }
+    }
+    
+    /**
+     * Check if cache entry exists and is not expired
+     */
+    fun isValid(key: String): Boolean {
+        val entry = cache[key] ?: return false
+        return if (isExpired(entry)) {
+            cache.remove(key)
+            false
+        } else {
+            true
+        }
+    }
+    
+    /**
+     * Remove specific cache entry
+     */
+    fun invalidate(key: String) {
+        cache.remove(key)
+    }
+    
+    /**
+     * Remove all cache entries matching pattern
+     */
+    fun invalidatePattern(pattern: String) {
+        val regex = pattern.replace("*", ".*").toRegex()
+        val keysToRemove = cache.keys.filter { regex.matches(it) }
+        keysToRemove.forEach { cache.remove(it) }
+    }
+    
+    /**
+     * Clear all cache entries
+     */
+    fun clearAll() {
+        cache.clear()
+    }
+    
+    /**
+     * Get cache size for monitoring
+     */
+    fun size(): Int = cache.size
+    
+    /**
+     * Clean up expired entries
+     */
+    fun cleanup() {
+        val now = Clock.System.now().toEpochMilliseconds()
+        val expiredKeys = cache.filter { (_, entry) ->
+            (now - entry.timestamp) > entry.ttl
+        }.keys
+        expiredKeys.forEach { cache.remove(it) }
+    }
+    
+    private fun isExpired(entry: SimpleCacheEntry): Boolean {
+        val now = Clock.System.now().toEpochMilliseconds()
+        return (now - entry.timestamp) > entry.ttl
+    }
+}
+
+/**
+ * Simple cache entry
+ */
+@Serializable
+data class SimpleCacheEntry(
+    val data: String, // JSON serialized data
+    val timestamp: Long,
+    val ttl: Long // TTL in milliseconds
+)

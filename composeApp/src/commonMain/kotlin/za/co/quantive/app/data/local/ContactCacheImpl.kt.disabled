@@ -1,0 +1,175 @@
+package za.co.quantive.app.data.local
+
+import za.co.quantive.app.core.cache.SimpleCache
+import za.co.quantive.app.data.remote.repository.ContactCache
+import za.co.quantive.app.domain.entities.*
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.hours
+
+/**
+ * Smart caching implementation for contacts (customers & suppliers)
+ * Follows TTL-based strategy from caching guidelines
+ */
+class ContactCacheImpl(
+    private val cache: SimpleCache = SimpleCache()
+) : ContactCache {
+    
+    companion object {
+        // TTL values from caching guidelines
+        private val CUSTOMER_LIST_TTL = 10.minutes // High read frequency, moderate updates
+        private val SUPPLIER_LIST_TTL = 1.hours    // Low update frequency  
+        private val SEARCH_RESULTS_TTL = 2.minutes // Shorter TTL for searches
+        private val CONTACT_DETAIL_TTL = 30.minutes // Individual contact details
+    }
+    
+    /**
+     * Get contacts with smart caching based on filter
+     */
+    override suspend fun getContacts(filter: ContactFilter?): List<BusinessContact> {
+        val cacheKey = buildContactListCacheKey(filter)
+        
+        // Try cache first
+        val cached = cache.get<List<BusinessContact>>(cacheKey)
+        if (cached != null) {
+            return cached
+        }
+        
+        // Cache miss - return empty list (caller will fetch from API)
+        return emptyList()
+    }
+    
+    /**
+     * Save contact list to cache with appropriate TTL
+     */
+    override suspend fun saveContacts(contacts: List<BusinessContact>) {
+        // We need to save with different cache keys based on common filter patterns
+        
+        // Save full list
+        val fullListKey = "contacts_list_all"
+        cache.put(fullListKey, contacts, CUSTOMER_LIST_TTL)
+        
+        // Save filtered lists for common patterns
+        val customers = contacts.filter { it.type.isCustomer() }
+        val suppliers = contacts.filter { it.type.isSupplier() }
+        
+        if (customers.isNotEmpty()) {
+            val customerKey = "contacts_list_CUSTOMER"
+            cache.put(customerKey, customers, CUSTOMER_LIST_TTL)
+        }
+        
+        if (suppliers.isNotEmpty()) {
+            val supplierKey = "contacts_list_SUPPLIER" 
+            cache.put(supplierKey, suppliers, SUPPLIER_LIST_TTL)
+        }
+        
+        // Also cache individual contacts for detail view optimization
+        contacts.forEach { contact ->
+            val contactKey = "contact_${contact.id}"
+            cache.put(contactKey, contact, CONTACT_DETAIL_TTL)
+        }
+    }
+    
+    /**
+     * Get individual contact from cache
+     */
+    override suspend fun getContact(id: String): BusinessContact? {
+        val cacheKey = "contact_$id"
+        return cache.get<BusinessContact>(cacheKey)
+    }
+    
+    /**
+     * Save individual contact to cache
+     */
+    override suspend fun saveContact(contact: BusinessContact) {
+        val cacheKey = "contact_${contact.id}"
+        cache.put(cacheKey, contact, CONTACT_DETAIL_TTL)
+        
+        // Invalidate related lists
+        cache.invalidatePattern("contacts_list*")
+    }
+    
+    /**
+     * Remove contact from cache
+     */
+    override suspend fun deleteContact(id: String) {
+        cache.invalidate("contact_$id")
+        
+        // Invalidate lists that might contain this contact
+        cache.invalidatePattern("contacts_list*")
+    }
+    
+    /**
+     * Clear all contact caches
+     */
+    override suspend fun clearCache() {
+        cache.invalidatePattern("contact*")
+    }
+    
+    /**
+     * Save new contact and invalidate related caches
+     */
+    suspend fun saveNewContact(contact: BusinessContact) {
+        val cacheKey = "contact_${contact.id}"
+        cache.put(cacheKey, contact, CONTACT_DETAIL_TTL)
+        
+        // New contact affects list caches
+        cache.invalidatePattern("contacts_list*")
+    }
+    
+    /**
+     * Get frequently accessed customers for quick access
+     * Used in invoice creation for autocomplete
+     */
+    suspend fun getRecentCustomers(limit: Int = 20): List<BusinessContact> {
+        val cacheKey = "recent_customers_$limit"
+        return cache.get<List<BusinessContact>>(cacheKey) ?: emptyList()
+    }
+    
+    /**
+     * Save recent customers list
+     */
+    suspend fun saveRecentCustomers(customers: List<BusinessContact>, limit: Int = 20) {
+        val cacheKey = "recent_customers_$limit"
+        cache.put(cacheKey, customers.take(limit), CUSTOMER_LIST_TTL)
+    }
+    
+    
+    
+    /**
+     * Build consistent cache key for contact lists
+     */
+    private fun buildContactListCacheKey(filter: ContactFilter?): String = buildString {
+        append("contacts_list")
+        
+        if (filter == null) {
+            append("_all")
+        } else {
+            filter.type?.let { append("_${it.name}") }
+            filter.searchQuery?.let { 
+                if (it.isNotBlank()) {
+                    append("_search_${it.lowercase().hashCode()}")
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get cache statistics for monitoring
+     */
+    suspend fun getCacheStats(): ContactCacheStats {
+        return ContactCacheStats(
+            totalContactEntries = cache.size(),
+            memoryEntries = cache.size(),
+            persistentEntries = 0
+        )
+    }
+}
+
+/**
+ * Contact cache statistics
+ */
+data class ContactCacheStats(
+    val totalContactEntries: Int,
+    val memoryEntries: Int,
+    val persistentEntries: Int
+)

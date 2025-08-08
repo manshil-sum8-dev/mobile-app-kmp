@@ -15,19 +15,19 @@ data class Invoice(
     val customer: Customer?,
     val status: InvoiceStatus,
     val items: List<InvoiceItem>,
-    
+
     // Backend-calculated financial data
     val calculations: InvoiceCalculations,
-    
+
     // Backend-provided metadata
     val metadata: InvoiceMetadata,
-    
+
     // Backend-validated compliance info
     val compliance: ComplianceInfo,
-    
+
     // Backend-managed template/recurring info
     val templateInfo: TemplateInfo? = null,
-    val recurringInfo: RecurringInfo? = null
+    val recurringInfo: RecurringInfo? = null,
 ) {
     /**
      * Convenience properties for backward compatibility
@@ -51,7 +51,7 @@ data class InvoiceCalculations(
     val amountDue: Money,
     val amountPaid: Money,
     val taxBreakdown: List<TaxLine>,
-    val discounts: List<DiscountLine>
+    val discounts: List<DiscountLine>,
 )
 
 /**
@@ -61,7 +61,7 @@ data class InvoiceCalculations(
 data class Money(
     val amount: Double,
     val currency: String,
-    val formattedAmount: String // Backend-formatted for display
+    val formattedAmount: String, // Backend-formatted for display
 )
 
 /**
@@ -73,7 +73,7 @@ data class TaxLine(
     val rate: Double, // Backend-provided rate
     val baseAmount: Money,
     val taxAmount: Money,
-    val description: String
+    val description: String,
 )
 
 /**
@@ -83,7 +83,7 @@ data class TaxLine(
 data class DiscountLine(
     val type: String, // "PERCENTAGE", "FIXED"
     val description: String,
-    val discountAmount: Money
+    val discountAmount: Money,
 )
 
 /**
@@ -101,7 +101,7 @@ data class InvoiceMetadata(
     val paymentTerms: String? = null,
     val dueDays: Int? = null, // Backend calculated
     val isOverdue: Boolean, // Backend determined
-    val daysSinceDue: Int? = null // Backend calculated (null if not overdue)
+    val daysSinceDue: Int? = null, // Backend calculated (null if not overdue)
 )
 
 /**
@@ -115,7 +115,7 @@ data class ComplianceInfo(
     val customerVatNumber: String? = null,
     val complianceStatus: ComplianceStatus,
     val validationErrors: List<String> = emptyList(),
-    val requiredFields: List<String> = emptyList()
+    val requiredFields: List<String> = emptyList(),
 )
 
 @Serializable
@@ -123,7 +123,7 @@ enum class ComplianceStatus {
     COMPLIANT,
     NON_COMPLIANT,
     PENDING_VALIDATION,
-    VALIDATION_FAILED
+    VALIDATION_FAILED,
 }
 
 /**
@@ -133,7 +133,7 @@ enum class ComplianceStatus {
 data class TemplateInfo(
     val isTemplate: Boolean,
     val templateName: String? = null,
-    val templateId: String? = null
+    val templateId: String? = null,
 )
 
 /**
@@ -148,7 +148,7 @@ data class RecurringInfo(
     val endDate: String? = null,
     val maxOccurrences: Int? = null,
     val currentOccurrence: Int? = null,
-    val isActive: Boolean = false
+    val isActive: Boolean = false,
 )
 
 /**
@@ -161,10 +161,10 @@ data class InvoiceItem(
     val quantity: Double,
     val unitPrice: Money,
     val lineTotal: Money, // Backend calculated
-    val taxAmount: Money, // Backend calculated  
+    val taxAmount: Money, // Backend calculated
     val notes: String? = null,
     val productId: String? = null,
-    val productCode: String? = null
+    val productCode: String? = null,
 )
 
 /**
@@ -176,7 +176,7 @@ data class Customer(
     val name: String,
     val email: String? = null,
     val vatNumber: String? = null,
-    val address: Address? = null
+    val address: Address? = null,
 )
 
 /**
@@ -188,7 +188,7 @@ data class Address(
     val city: String,
     val state: String? = null,
     val postalCode: String,
-    val country: String
+    val country: String,
 )
 
 /**
@@ -203,12 +203,13 @@ enum class InvoiceStatus(val displayName: String) {
     PARTIALLY_PAID("Partially Paid"),
     OVERDUE("Overdue"),
     CANCELLED("Cancelled"),
-    REFUNDED("Refunded");
-    
+    REFUNDED("Refunded"),
+    ;
+
     fun isActive(): Boolean {
         return this in listOf(SENT, VIEWED, PARTIALLY_PAID, OVERDUE)
     }
-    
+
     fun isPaid(): Boolean {
         return this == PAID
     }
@@ -222,7 +223,7 @@ enum class RecurringFrequency(val displayName: String) {
     WEEKLY("Weekly"),
     MONTHLY("Monthly"),
     QUARTERLY("Quarterly"),
-    YEARLY("Yearly")
+    YEARLY("Yearly"),
 }
 
 /**
@@ -234,15 +235,16 @@ data class InvoiceFilter(
     val dateRange: DateRange? = null,
     val searchQuery: String? = null,
     val isOverdue: Boolean? = null,
-    val amountRange: AmountRange? = null
+    val amountRange: AmountRange? = null,
 )
 
 /**
  * Date range filter
+ * @deprecated Use za.co.quantive.app.domain.shared.DateRange instead
  */
 data class DateRange(
     val start: String, // ISO date string
-    val end: String    // ISO date string
+    val end: String, // ISO date string
 )
 
 /**
@@ -251,7 +253,7 @@ data class DateRange(
 data class AmountRange(
     val min: Double,
     val max: Double,
-    val currency: String = "ZAR"
+    val currency: String = "ZAR",
 )
 
 /**
@@ -266,7 +268,7 @@ data class InvoiceSummary(
     val overdueAmount: Money,
     val statusBreakdown: Map<InvoiceStatus, Int>,
     val averageInvoiceValue: Money,
-    val trends: InvoiceTrends
+    val trends: InvoiceTrends,
 )
 
 /**
@@ -276,14 +278,14 @@ data class InvoiceSummary(
 data class InvoiceTrends(
     val monthOverMonth: TrendData,
     val yearOverYear: TrendData,
-    val averagePaymentTime: Int // days
+    val averagePaymentTime: Int, // days
 )
 
 @Serializable
 data class TrendData(
     val percentageChange: Double,
     val direction: TrendDirection,
-    val previousValue: Money
+    val previousValue: Money,
 )
 
 @Serializable

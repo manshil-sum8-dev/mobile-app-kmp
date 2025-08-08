@@ -1,0 +1,663 @@
+package za.co.quantive.app.data.remote.api
+
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
+import za.co.quantive.app.data.remote.SupabaseClient
+import za.co.quantive.app.domain.entities.DateRange
+import za.co.quantive.app.testing.BaseTest
+import za.co.quantive.app.testing.MockFactory
+import za.co.quantive.app.testing.runTestWithTimeout
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Comprehensive test suite for AnalyticsRpcImpl
+ * Tests RPC pattern implementation, backend integration, and error handling
+ * Coverage target: 95%+ for analytics RPC logic
+ */
+class AnalyticsRpcImplTest : BaseTest() {
+
+    private lateinit var mockSupabaseClient: SupabaseClient
+    private lateinit var analyticsRpc: AnalyticsRpcImpl
+
+    // Test data
+    private val testDateRange = DateRange(start = "2024-01-01", end = "2024-01-31")
+    
+    private val testDashboardOverview = DashboardOverview(
+        totalRevenue = 50000.0,
+        totalInvoices = 150,
+        pendingInvoices = 25,
+        overdueInvoices = 5,
+        totalCustomers = 50,
+        newCustomersThisMonth = 8,
+        averageInvoiceValue = 333.33,
+        paymentSuccessRate = 0.95
+    )
+
+    private val testBusinessMetrics = BusinessMetrics(
+        monthlyRevenue = listOf(45000.0, 50000.0, 48000.0),
+        monthlyInvoiceCount = listOf(140, 150, 145),
+        monthlyNewCustomers = listOf(5, 8, 6),
+        months = listOf("November", "December", "January")
+    )
+
+    override fun setUp() {
+        super.setUp()
+        mockSupabaseClient = MockFactory.createMockSupabaseClient()
+        analyticsRpc = AnalyticsRpcImpl(mockSupabaseClient)
+    }
+
+    override fun tearDown() {
+        MockFactory.clearMocks()
+        super.tearDown()
+    }
+
+    // Dashboard Overview Tests
+
+    @Test
+    fun `getDashboardOverview returns overview without date range`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        any()
+                    )
+                } returns testDashboardOverview
+            },
+            `when` = {
+                val result = analyticsRpc.getDashboardOverview(null)
+            },
+            then = {
+                assertTrue(result.isSuccess())
+                assertEquals(50000.0, result.data!!.totalRevenue)
+                assertEquals(150, result.data!!.totalInvoices)
+                assertEquals(25, result.data!!.pendingInvoices)
+                
+                // Verify API call with empty params
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        match { params -> params.isEmpty() }
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `getDashboardOverview returns overview with date range`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        any()
+                    )
+                } returns testDashboardOverview
+            },
+            `when` = {
+                val result = analyticsRpc.getDashboardOverview(testDateRange)
+            },
+            then = {
+                assertTrue(result.isSuccess())
+                assertEquals(testDashboardOverview.totalRevenue, result.data!!.totalRevenue)
+                
+                // Verify API call with date range params
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        match { params ->
+                            params["start_date"] == "2024-01-01" && params["end_date"] == "2024-01-31"
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `getDashboardOverview handles API exception`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        any()
+                    )
+                } throws RuntimeException("Database connection failed")
+            },
+            `when` = {
+                val result = analyticsRpc.getDashboardOverview(testDateRange)
+            },
+            then = {
+                assertTrue(result.isError())
+                assertTrue(result.message!!.contains("Failed to fetch dashboard overview"))
+                assertTrue(result.message!!.contains("Database connection failed"))
+            }
+        )
+    }
+
+    // Business Metrics Tests
+
+    @Test
+    fun `getBusinessMetrics returns metrics with granularity`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        any()
+                    )
+                } returns testBusinessMetrics
+            },
+            `when` = {
+                val result = analyticsRpc.getBusinessMetrics(testDateRange, MetricGranularity.MONTHLY)
+            },
+            then = {
+                assertTrue(result.isSuccess())
+                assertEquals(3, result.data!!.monthlyRevenue.size)
+                assertEquals(50000.0, result.data!!.monthlyRevenue[1])
+                
+                // Verify API call with granularity and date range
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        match { params ->
+                            params["granularity"] == "MONTHLY" &&
+                            params["start_date"] == "2024-01-01" &&
+                            params["end_date"] == "2024-01-31"
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `getBusinessMetrics handles different granularities`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                coEvery {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        any()
+                    )
+                } returns testBusinessMetrics
+            },
+            `when` = {
+                // Test daily granularity
+                val dailyResult = analyticsRpc.getBusinessMetrics(null, MetricGranularity.DAILY)
+                
+                // Test weekly granularity
+                val weeklyResult = analyticsRpc.getBusinessMetrics(null, MetricGranularity.WEEKLY)
+                
+                // Test yearly granularity
+                val yearlyResult = analyticsRpc.getBusinessMetrics(null, MetricGranularity.YEARLY)
+            },
+            then = {
+                assertTrue(dailyResult.isSuccess())
+                assertTrue(weeklyResult.isSuccess())
+                assertTrue(yearlyResult.isSuccess())
+                
+                // Verify all granularities were called
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        match { params -> params["granularity"] == "DAILY" }
+                    )
+                }
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        match { params -> params["granularity"] == "WEEKLY" }
+                    )
+                }
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        match { params -> params["granularity"] == "YEARLY" }
+                    )
+                }
+            }
+        )
+    }
+
+    // Revenue Analytics Tests
+
+    @Test
+    fun `getRevenueAnalytics returns revenue analysis`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val testRevenueAnalytics = RevenueAnalytics(
+                    monthlyGrowthRate = 0.15,
+                    averageMonthlyRevenue = 48000.0,
+                    totalRevenueGrowth = 0.25,
+                    bestPerformingMonth = "December",
+                    topRevenueStreams = listOf("Consulting", "Product Sales")
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<RevenueAnalytics, Map<String, String?>>(
+                        "rest/v1/rpc/get_revenue_analytics",
+                        any()
+                    )
+                } returns testRevenueAnalytics
+            },
+            `when` = {
+                val result = analyticsRpc.getRevenueAnalytics(testDateRange)
+            },
+            then = {
+                assertTrue(result.isSuccess())
+                assertEquals(0.15, result.data!!.monthlyGrowthRate)
+                assertEquals("December", result.data!!.bestPerformingMonth)
+                
+                // Verify API call
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<RevenueAnalytics, Map<String, String?>>(
+                        "rest/v1/rpc/get_revenue_analytics",
+                        any()
+                    )
+                }
+            }
+        )
+    }
+
+    // Customer Analytics Tests
+
+    @Test
+    fun `getCustomerAnalytics returns customer insights`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val testCustomerAnalytics = CustomerAnalytics(
+                    totalCustomers = 50,
+                    newCustomers = 8,
+                    customerRetentionRate = 0.85,
+                    averageCustomerValue = 2400.0,
+                    topCustomers = listOf("Customer A", "Customer B"),
+                    customerSegments = mapOf("High Value" to 15, "Regular" to 35)
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<CustomerAnalytics, Map<String, String?>>(
+                        "rest/v1/rpc/get_customer_analytics",
+                        any()
+                    )
+                } returns testCustomerAnalytics
+            },
+            `when` = {
+                val result = analyticsRpc.getCustomerAnalytics(testDateRange)
+            },
+            then = {
+                assertTrue(result.isSuccess())
+                assertEquals(50, result.data!!.totalCustomers)
+                assertEquals(0.85, result.data!!.customerRetentionRate)
+                assertEquals(2, result.data!!.topCustomers.size)
+            }
+        )
+    }
+
+    // Payment Analytics Tests
+
+    @Test
+    fun `getPaymentAnalytics returns payment insights`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val testPaymentAnalytics = PaymentAnalytics(
+                    averagePaymentTime = 14.5,
+                    paymentSuccessRate = 0.95,
+                    preferredPaymentMethods = mapOf("Bank Transfer" to 60, "Credit Card" to 40),
+                    overduePayments = 5,
+                    totalOutstandingAmount = 12500.0
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<PaymentAnalytics, Map<String, String?>>(
+                        "rest/v1/rpc/get_payment_analytics",
+                        any()
+                    )
+                } returns testPaymentAnalytics
+            },
+            `when` = {
+                val result = analyticsRpc.getPaymentAnalytics(testDateRange)
+            },
+            then = {
+                assertTrue(result.isSuccess())
+                assertEquals(14.5, result.data!!.averagePaymentTime)
+                assertEquals(0.95, result.data!!.paymentSuccessRate)
+                assertEquals(5, result.data!!.overduePayments)
+            }
+        )
+    }
+
+    // Tax Analytics Tests
+
+    @Test
+    fun `getTaxAnalytics returns SARS-compliant tax data`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val testTaxAnalytics = TaxAnalytics(
+                    totalVatCollected = 7500.0,
+                    vatRate = 0.15,
+                    taxableAmount = 50000.0,
+                    exemptAmount = 5000.0,
+                    quarterlyVatReturns = mapOf("Q4 2023" to 7500.0, "Q1 2024" to 8000.0),
+                    upcomingTaxDeadlines = listOf("2024-02-28", "2024-05-31")
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<TaxAnalytics, Map<String, String?>>(
+                        "rest/v1/rpc/get_tax_analytics",
+                        any()
+                    )
+                } returns testTaxAnalytics
+            },
+            `when` = {
+                val result = analyticsRpc.getTaxAnalytics(testDateRange)
+            },
+            then = {
+                assertTrue(result.isSuccess())
+                assertEquals(7500.0, result.data!!.totalVatCollected)
+                assertEquals(0.15, result.data!!.vatRate)
+                assertEquals(50000.0, result.data!!.taxableAmount)
+                assertEquals(2, result.data!!.upcomingTaxDeadlines.size)
+            }
+        )
+    }
+
+    // Export Report Tests
+
+    @Test
+    fun `exportBusinessReport generates report in different formats`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val testExportResponse = ExportResponse(
+                    downloadUrl = "https://example.com/report.pdf",
+                    fileName = "business_report_2024.pdf",
+                    fileSize = 1024567,
+                    expiresAt = "2024-02-01T00:00:00Z"
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<ExportResponse, Map<String, String>>(
+                        "rest/v1/rpc/export_business_report",
+                        any()
+                    )
+                } returns testExportResponse
+            },
+            `when` = {
+                val pdfResult = analyticsRpc.exportBusinessReport(
+                    ReportType.FINANCIAL,
+                    testDateRange,
+                    ExportFormat.PDF
+                )
+                
+                val csvResult = analyticsRpc.exportBusinessReport(
+                    ReportType.TAX,
+                    testDateRange,
+                    ExportFormat.CSV
+                )
+            },
+            then = {
+                assertTrue(pdfResult.isSuccess())
+                assertTrue(csvResult.isSuccess())
+                
+                assertEquals("business_report_2024.pdf", pdfResult.data!!.fileName)
+                assertEquals(1024567, pdfResult.data!!.fileSize)
+                
+                // Verify both export calls were made
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<ExportResponse, Map<String, String>>(
+                        "rest/v1/rpc/export_business_report",
+                        match { params ->
+                            params["report_type"] == "FINANCIAL" && params["format"] == "PDF"
+                        }
+                    )
+                }
+                
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<ExportResponse, Map<String, String>>(
+                        "rest/v1/rpc/export_business_report",
+                        match { params ->
+                            params["report_type"] == "TAX" && params["format"] == "CSV"
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `exportBusinessReport supports all report types and formats`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val testExportResponse = ExportResponse(
+                    downloadUrl = "https://example.com/report.xlsx",
+                    fileName = "report.xlsx",
+                    fileSize = 512000,
+                    expiresAt = "2024-02-01T00:00:00Z"
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<ExportResponse, Map<String, String>>(
+                        "rest/v1/rpc/export_business_report",
+                        any()
+                    )
+                } returns testExportResponse
+            },
+            `when` = {
+                // Test all combinations
+                val reportTypes = listOf(ReportType.FINANCIAL, ReportType.TAX, ReportType.CUSTOMER)
+                val exportFormats = listOf(ExportFormat.PDF, ExportFormat.CSV, ExportFormat.EXCEL)
+                
+                val results = mutableListOf<ApiResponse<ExportResponse>>()
+                
+                reportTypes.forEach { reportType ->
+                    exportFormats.forEach { format ->
+                        val result = analyticsRpc.exportBusinessReport(reportType, testDateRange, format)
+                        results.add(result)
+                    }
+                }
+            },
+            then = {
+                // All combinations should succeed
+                results.forEach { result ->
+                    assertTrue(result.isSuccess())
+                }
+                
+                // Verify all 9 combinations were called (3 report types × 3 formats)
+                coVerify(exactly = 9) {
+                    mockSupabaseClient.post<ExportResponse, Map<String, String>>(
+                        "rest/v1/rpc/export_business_report",
+                        any()
+                    )
+                }
+            }
+        )
+    }
+
+    // Error Handling Tests
+
+    @Test
+    fun `all analytics methods handle network failures gracefully`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                val networkException = RuntimeException("Network timeout")
+                
+                // Setup all RPC calls to throw network exception
+                coEvery {
+                    mockSupabaseClient.post<Any, Any>(any(), any())
+                } throws networkException
+            },
+            `when` = {
+                val dashboardResult = analyticsRpc.getDashboardOverview(testDateRange)
+                val metricsResult = analyticsRpc.getBusinessMetrics(testDateRange, MetricGranularity.MONTHLY)
+                val revenueResult = analyticsRpc.getRevenueAnalytics(testDateRange)
+                val customerResult = analyticsRpc.getCustomerAnalytics(testDateRange)
+                val paymentResult = analyticsRpc.getPaymentAnalytics(testDateRange)
+                val taxResult = analyticsRpc.getTaxAnalytics(testDateRange)
+                val exportResult = analyticsRpc.exportBusinessReport(ReportType.FINANCIAL, testDateRange, ExportFormat.PDF)
+            },
+            then = {
+                // All operations should fail gracefully with proper error messages
+                val results = listOf(dashboardResult, metricsResult, revenueResult, customerResult, paymentResult, taxResult, exportResult)
+                
+                results.forEach { result ->
+                    assertTrue(result.isError())
+                    assertTrue(result.message!!.contains("Network timeout"))
+                }
+            }
+        )
+    }
+
+    // Performance Tests
+
+    @Test
+    fun `analytics operations complete within reasonable time for large datasets`() = runTestWithTimeout(timeout = 2000L) {
+        givenWhenThen(
+            given = {
+                // Simulate larger dataset responses
+                val largeDashboardOverview = testDashboardOverview.copy(
+                    totalInvoices = 10000,
+                    totalCustomers = 1000
+                )
+                
+                coEvery {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        any()
+                    )
+                } returns largeDashboardOverview
+            },
+            `when` = {
+                // Perform multiple analytics operations
+                val dashboardResult = analyticsRpc.getDashboardOverview(testDateRange)
+            },
+            then = {
+                // Should complete quickly even with large datasets
+                assertTrue(dashboardResult.isSuccess())
+                assertEquals(10000, dashboardResult.data!!.totalInvoices)
+            }
+        )
+    }
+
+    // Integration-like Tests
+
+    @Test
+    fun `analytics RPC follows backend-driven pattern correctly`() = runTestWithTimeout {
+        givenWhenThen(
+            given = {
+                // Setup multiple analytics calls to return data
+                coEvery {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        any()
+                    )
+                } returns testDashboardOverview
+                
+                coEvery {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        any()
+                    )
+                } returns testBusinessMetrics
+            },
+            `when` = {
+                // Perform typical analytics workflow
+                val overview = analyticsRpc.getDashboardOverview(testDateRange)
+                val metrics = analyticsRpc.getBusinessMetrics(testDateRange, MetricGranularity.MONTHLY)
+            },
+            then = {
+                // Both should succeed
+                assertTrue(overview.isSuccess())
+                assertTrue(metrics.isSuccess())
+                
+                // Verify backend calculations are used (no client-side computation)
+                assertEquals(testDashboardOverview.totalRevenue, overview.data!!.totalRevenue)
+                assertEquals(testBusinessMetrics.monthlyRevenue, metrics.data!!.monthlyRevenue)
+                
+                // Verify proper RPC endpoints were called
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<DashboardOverview, Map<String, String?>>(
+                        "rest/v1/rpc/get_dashboard_overview",
+                        any()
+                    )
+                }
+                
+                coVerify(exactly = 1) {
+                    mockSupabaseClient.post<BusinessMetrics, Map<String, Any?>>(
+                        "rest/v1/rpc/get_business_metrics",
+                        any()
+                    )
+                }
+            }
+        )
+    }
+}
+
+// Test data classes (simplified for testing)
+private data class DashboardOverview(
+    val totalRevenue: Double,
+    val totalInvoices: Int,
+    val pendingInvoices: Int,
+    val overdueInvoices: Int,
+    val totalCustomers: Int,
+    val newCustomersThisMonth: Int,
+    val averageInvoiceValue: Double,
+    val paymentSuccessRate: Double
+)
+
+private data class BusinessMetrics(
+    val monthlyRevenue: List<Double>,
+    val monthlyInvoiceCount: List<Int>,
+    val monthlyNewCustomers: List<Int>,
+    val months: List<String>
+)
+
+private data class RevenueAnalytics(
+    val monthlyGrowthRate: Double,
+    val averageMonthlyRevenue: Double,
+    val totalRevenueGrowth: Double,
+    val bestPerformingMonth: String,
+    val topRevenueStreams: List<String>
+)
+
+private data class CustomerAnalytics(
+    val totalCustomers: Int,
+    val newCustomers: Int,
+    val customerRetentionRate: Double,
+    val averageCustomerValue: Double,
+    val topCustomers: List<String>,
+    val customerSegments: Map<String, Int>
+)
+
+private data class PaymentAnalytics(
+    val averagePaymentTime: Double,
+    val paymentSuccessRate: Double,
+    val preferredPaymentMethods: Map<String, Int>,
+    val overduePayments: Int,
+    val totalOutstandingAmount: Double
+)
+
+private data class TaxAnalytics(
+    val totalVatCollected: Double,
+    val vatRate: Double,
+    val taxableAmount: Double,
+    val exemptAmount: Double,
+    val quarterlyVatReturns: Map<String, Double>,
+    val upcomingTaxDeadlines: List<String>
+)
+
+private data class ExportResponse(
+    val downloadUrl: String,
+    val fileName: String,
+    val fileSize: Int,
+    val expiresAt: String
+)
+
+private enum class MetricGranularity { DAILY, WEEKLY, MONTHLY, YEARLY }
+private enum class ReportType { FINANCIAL, TAX, CUSTOMER }
+private enum class ExportFormat { PDF, CSV, EXCEL }

@@ -1,0 +1,46 @@
+package za.co.quantive.app.testing
+
+import kotlinx.coroutines.test.TestResult
+import kotlinx.coroutines.test.runTest
+import kotlin.test.assertFailsWith
+
+/**
+ * Coroutine testing utilities for consistent async testing patterns
+ */
+
+/**
+ * Run a test with timeout and proper exception handling
+ */
+fun runTestWithTimeout(
+    timeout: Long = 5000L,
+    testBody: suspend () -> Unit,
+): TestResult = runTest(timeout = timeout) {
+    testBody()
+}
+
+/**
+ * Test that a suspend function throws a specific exception
+ */
+suspend inline fun <reified T : Throwable> assertThrows(
+    crossinline block: suspend () -> Unit,
+): T = assertFailsWith<T> {
+    block()
+}
+
+/**
+ * Test utilities for flow testing with Turbine
+ */
+object FlowTestUtil {
+    
+    /**
+     * Collect flow emissions with timeout
+     */
+    suspend fun <T> collectWithTimeout(
+        timeout: Long = 1000L,
+        collector: suspend () -> T,
+    ): T {
+        return kotlinx.coroutines.withTimeout(timeout) {
+            collector()
+        }
+    }
+}

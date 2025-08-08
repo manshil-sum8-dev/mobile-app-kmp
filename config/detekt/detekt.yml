@@ -1,0 +1,571 @@
+build:
+  maxIssues: 0  # Zero tolerance for quality issues
+  excludeCorrectable: false
+  weights:
+    complexity: 2
+    LongParameterList: 1
+    style: 1
+    comments: 1
+
+config:
+  validation: true
+  warningsAsErrors: true
+  checkExhaustiveness: false
+
+processors:
+  active: true
+
+console-reports:
+  active: true
+
+output-reports:
+  active: true
+
+style:
+  active: true
+  MagicNumber:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**', '**/Test.kt']
+    ignoreNumbers: ['-1', '0', '1', '2', '100', '1000']
+    ignoreHashCodeFunction: true
+    ignorePropertyDeclaration: true
+    ignoreConstantDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignoreNamedArgument: true
+    ignoreEnums: true
+    ignoreRanges: true
+    ignoreExtensionFunctions: true
+    ignoreAnnotationDefaults: true
+
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+    excludePackageStatements: true
+    excludeImportStatements: true
+    excludeCommentStatements: false
+
+  UnusedImports:
+    active: true
+
+  NewLineAtEndOfFile:
+    active: true
+
+  NoTabs:
+    active: true
+
+  TrailingWhitespace:
+    active: true
+
+  SpacingBetweenPackageAndImports:
+    active: true
+
+  UnderscoresInNumericLiterals:
+    active: true
+    acceptableDecimalLength: 5
+
+  ForbiddenComment:
+    active: true
+    values: ['TODO:', 'FIXME:', 'STOPSHIP:', 'TODO', 'FIXME', 'STOPSHIP']
+    allowedPatterns: 'TODO: .+'
+
+  OptionalAbstractKeyword:
+    active: true
+
+  OptionalReturnKeyword:
+    active: true
+
+  UseRequire:
+    active: true
+
+  UseCheckOrError:
+    active: true
+
+complexity:
+  active: true
+  ComplexMethod:
+    active: true
+    threshold: 15
+    ignoreSingleWhenExpression: false
+    ignoreSimpleWhenEntries: false
+    ignoreNestingFunctions: false
+    nestingFunctions: ['also', 'apply', 'forEach', 'isNotNull', 'ifNull']
+
+  LongMethod:
+    active: true
+    threshold: 60
+
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+    thresholdInInterfaces: 20
+    thresholdInObjects: 20
+    thresholdInEnums: 10
+    ignoreDeprecated: false
+    ignorePrivate: false
+    ignoreOverridden: false
+
+  ComplexInterface:
+    active: true
+    threshold: 10
+    includeStaticDeclarations: false
+    includePrivateDeclarations: false
+
+  MethodOverloading:
+    active: true
+    threshold: 5
+
+  NestedBlockDepth:
+    active: true
+    threshold: 4
+
+  StringLiteralDuplication:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+    threshold: 3
+    ignoreAnnotation: true
+    excludeStringsWithLessThan5Characters: true
+    ignoreStringsRegex: '$^'
+
+  LargeClass:
+    active: true
+    threshold: 600
+
+  LongParameterList:
+    active: true
+    functionThreshold: 6
+    constructorThreshold: 7
+    ignoreDefaultParameters: false
+    ignoreDataClasses: true
+    ignoreAnnotatedParameter: []
+
+coroutines:
+  active: true
+  GlobalCoroutineUsage:
+    active: true
+  RedundantSuspendModifier:
+    active: true
+  SleepInsteadOfDelay:
+    active: true
+  SuspendFunWithFlowReturnType:
+    active: true
+
+exceptions:
+  active: true
+  ExceptionRaisedInUnexpectedLocation:
+    active: true
+    methodNames: ['toString', 'hashCode', 'equals', 'finalize']
+  InstanceOfCheckForException:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+  NotImplementedDeclaration:
+    active: false
+  PrintStackTrace:
+    active: true
+  RethrowCaughtException:
+    active: true
+  ReturnFromFinally:
+    active: true
+  SwallowedException:
+    active: true
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+  ThrowingExceptionFromFinally:
+    active: true
+  ThrowingExceptionInMain:
+    active: false
+  ThrowingExceptionsWithoutMessageOrCause:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+    exceptions:
+      - IllegalArgumentException
+      - IllegalStateException
+      - IOException
+  TooGenericExceptionCaught:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+    exceptionNames:
+      - ArrayIndexOutOfBoundsException
+      - Error
+      - Exception
+      - IllegalMonitorStateException
+      - NullPointerException
+      - IndexOutOfBoundsException
+      - RuntimeException
+      - Throwable
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+  TooGenericExceptionThrown:
+    active: true
+    exceptionNames:
+      - Error
+      - Exception
+      - Throwable
+      - RuntimeException
+
+performance:
+  active: true
+  ArrayPrimitive:
+    active: true
+  ForEachOnRange:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+  SpreadOperator:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+  UnnecessaryTemporaryInstantiation:
+    active: true
+
+potential-bugs:
+  active: true
+  Deprecation:
+    active: false
+  DuplicateCaseInWhenExpression:
+    active: true
+  EqualsAlwaysReturnsTrueOrFalse:
+    active: true
+  EqualsWithHashCodeExist:
+    active: true
+  ExplicitGarbageCollectionCall:
+    active: true
+  HasPlatformType:
+    active: true
+  IgnoredReturnValue:
+    active: true
+    restrictToAnnotatedMethods: true
+    returnValueAnnotations: ['*.CheckReturnValue', '*.CheckResult']
+  ImplicitDefaultLocale:
+    active: true
+  InvalidRange:
+    active: true
+  IteratorHasNextCallsNextMethod:
+    active: true
+  IteratorNotThrowingNoSuchElementException:
+    active: true
+  LateinitUsage:
+    active: false
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+    ignoreAnnotated: ['Inject']
+  MapGetWithNotNullAssertionOperator:
+    active: true
+  MissingWhenCase:
+    active: true
+    allowElseExpression: true
+  RedundantElseInWhen:
+    active: true
+  UnconditionalJumpStatementInLoop:
+    active: true
+  UnnecessaryNotNullOperator:
+    active: true
+  UnnecessarySafeCall:
+    active: true
+  UnreachableCode:
+    active: true
+  UnsafeCallOnNullableType:
+    active: true
+  UnsafeCast:
+    active: true
+  UselessPostfixExpression:
+    active: true
+  WrongEqualsTypeParameter:
+    active: true
+
+naming:
+  active: true
+  ClassNaming:
+    active: true
+    classPattern: '[A-Z][a-zA-Z0-9]*'
+  ConstructorParameterNaming:
+    active: true
+    parameterPattern: '[a-z][A-Za-z0-9]*'
+    privateParameterPattern: '[a-z][A-Za-z0-9]*'
+    excludeClassPattern: '$^'
+  EnumNaming:
+    active: true
+    enumEntryPattern: '[A-Z][_a-zA-Z0-9]*'
+  ForbiddenClassName:
+    active: false
+    forbiddenName: []
+  FunctionMaxLength:
+    active: false
+    maximumFunctionNameLength: 30
+  FunctionMinLength:
+    active: false
+    minimumFunctionNameLength: 3
+  FunctionNaming:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidInstrumentedTest/**', '**/commonTest/**']
+    functionPattern: '([a-z][a-zA-Z0-9]*)|(`.*`)'
+    excludeClassPattern: '$^'
+    ignoreAnnotated: ['Composable']
+  FunctionParameterNaming:
+    active: true
+    parameterPattern: '[a-z][A-Za-z0-9]*'
+    excludeClassPattern: '$^'
+  InvalidPackageDeclaration:
+    active: true
+    rootPackage: 'za.co.quantive.app'
+    requireRootInDeclaration: true
+  MatchingDeclarationName:
+    active: true
+    mustBeFirst: true
+  MemberNameEqualsClassName:
+    active: true
+    ignoreOverridden: true
+  NoNameShadowing:
+    active: true
+  NonBooleanPropertyPrefixedWithIs:
+    active: true
+  ObjectPropertyNaming:
+    active: true
+    constantPattern: '[A-Za-z][_A-Za-z0-9]*'
+    propertyPattern: '[A-Za-z][_A-Za-z0-9]*'
+    privatePropertyPattern: '(_)?[A-Za-z][_A-Za-z0-9]*'
+  PackageNaming:
+    active: true
+    packagePattern: '^[a-z]+(\.[a-z][A-Za-z0-9]*)*$'
+  TopLevelPropertyNaming:
+    active: true
+    constantPattern: '[A-Z][_A-Z0-9]*'
+    propertyPattern: '[A-Za-z][_A-Za-z0-9]*'
+    privatePropertyPattern: '_?[A-Za-z][_A-Za-z0-9]*'
+  VariableMaxLength:
+    active: false
+    maximumVariableNameLength: 64
+  VariableMinLength:
+    active: false
+    minimumVariableNameLength: 1
+  VariableNaming:
+    active: true
+    variablePattern: '[a-z][A-Za-z0-9]*'
+    privateVariablePattern: '(_)?[a-z][A-Za-z0-9]*'
+    excludeClassPattern: '$^'
+
+comments:
+  active: true
+  AbsentOrWrongFileLicense:
+    active: false
+    licenseTemplateFile: 'license.template'
+  CommentOverPrivateFunction:
+    active: false
+  CommentOverPrivateProperty:
+    active: false
+  DeprecatedBlockTag:
+    active: false
+  EndOfSentenceFormat:
+    active: false
+    endOfSentenceFormat: '([.?!][ \t\n\r\f<])|([.?!:]$)'
+  UndocumentedPublicClass:
+    active: false
+    searchInNestedClass: true
+    searchInInnerClass: true
+    searchInInnerObject: true
+    searchInInnerInterface: true
+  UndocumentedPublicFunction:
+    active: false
+  UndocumentedPublicProperty:
+    active: false
+
+formatting:
+  active: true
+  android: true
+  autoCorrect: true
+  AnnotationOnSeparateLine:
+    active: false
+    autoCorrect: false
+  AnnotationSpacing:
+    active: false
+    autoCorrect: false
+  ArgumentListWrapping:
+    active: false
+    autoCorrect: false
+  ChainWrapping:
+    active: true
+    autoCorrect: true
+  CommentSpacing:
+    active: true
+    autoCorrect: true
+  EnumEntryNameCase:
+    active: false
+    autoCorrect: false
+  Filename:
+    active: true
+  FinalNewline:
+    active: true
+    autoCorrect: true
+    insertFinalNewLine: true
+  ImportOrdering:
+    active: false
+    autoCorrect: false
+  Indentation:
+    active: false
+    autoCorrect: false
+    indentSize: 4
+    continuationIndentSize: 4
+  MaximumLineLength:
+    active: true
+    maxLineLength: 120
+    ignoreBackTickedIdentifier: false
+  ModifierOrdering:
+    active: true
+    autoCorrect: true
+  MultiLineIfElse:
+    active: false
+    autoCorrect: false
+  NoBlankLineBeforeRbrace:
+    active: true
+    autoCorrect: true
+  NoConsecutiveBlankLines:
+    active: true
+    autoCorrect: true
+  NoEmptyClassBody:
+    active: true
+    autoCorrect: true
+  NoEmptyFirstLineInMethodBlock:
+    active: false
+    autoCorrect: false
+  NoLineBreakAfterElse:
+    active: false
+    autoCorrect: false
+  NoLineBreakBeforeAssignment:
+    active: false
+    autoCorrect: false
+  NoMultipleSpaces:
+    active: true
+    autoCorrect: true
+  NoSemicolons:
+    active: true
+    autoCorrect: true
+  NoTrailingSpaces:
+    active: true
+    autoCorrect: true
+  NoUnitReturn:
+    active: true
+    autoCorrect: true
+  NoUnusedImports:
+    active: true
+    autoCorrect: true
+  NoWildcardImports:
+    active: false
+  PackageName:
+    active: true
+    autoCorrect: true
+  ParameterListWrapping:
+    active: false
+    autoCorrect: false
+  SpacingAroundAngleBrackets:
+    active: false
+    autoCorrect: false
+  SpacingAroundColon:
+    active: true
+    autoCorrect: true
+  SpacingAroundComma:
+    active: true
+    autoCorrect: true
+  SpacingAroundCurly:
+    active: true
+    autoCorrect: true
+  SpacingAroundDot:
+    active: true
+    autoCorrect: true
+  SpacingAroundDoubleColon:
+    active: false
+    autoCorrect: false
+  SpacingAroundKeyword:
+    active: true
+    autoCorrect: true
+  SpacingAroundOperators:
+    active: true
+    autoCorrect: true
+  SpacingAroundParens:
+    active: true
+    autoCorrect: true
+  SpacingAroundRangeOperator:
+    active: true
+    autoCorrect: true
+  SpacingBetweenDeclarationsWithAnnotations:
+    active: false
+    autoCorrect: false
+  SpacingBetweenDeclarationsWithComments:
+    active: false
+    autoCorrect: false
+  StringTemplate:
+    active: true
+    autoCorrect: true
+
+# KMP-specific custom rules
+custom-rules:
+  active: true
+  
+  # Expect/Actual naming consistency
+  ExpectActualNaming:
+    active: true
+    expectClassSuffix: 'Expected'
+    actualClassSuffix: 'Impl'
+    
+  # Forbid GlobalScope usage - use structured concurrency
+  NoGlobalScope:
+    active: true
+    message: 'Use viewModelScope, lifecycleScope, or coroutineScope instead of GlobalScope'
+    
+  # Ensure proper platform-specific dependencies
+  SharedModuleDependencies:
+    active: true
+    allowedPlatformDependencies:
+      - 'ktor-client-*'
+      - 'kotlinx-*'
+      - 'koin-*'
+      - 'napier'
+      - 'multiplatform-settings'
+      
+  # Backend-driven pattern enforcement
+  BackendDrivenPattern:
+    active: true
+    forbiddenClientCalculations: true
+    message: 'Business calculations should be handled by backend, not client'
+    
+  # Security rules for KMP
+  NoHardcodedSecrets:
+    active: true
+    secretPatterns:
+      - 'password'
+      - 'secret'
+      - 'token'
+      - 'api_key'
+      - 'private_key'
+    message: 'Hardcoded secrets found - use SecureStore instead'
+    
+  # Proper error handling with Result wrapper
+  ProperErrorHandling:
+    active: true
+    requireResultWrapper: true
+    message: 'Use Result<T, Error> pattern for error handling'
+    
+  # TTL Cache usage validation
+  CacheUsageValidation:
+    active: true
+    requireTTLSpecification: true
+    allowedCacheTTLs: ['5min', '30min', '24hr']
+    message: 'Specify appropriate TTL for cache operations'
+
+exclude-rules:
+  # Test-specific exclusions
+  - 'MagicNumber:**/test/**'
+  - 'MagicNumber:**/androidTest/**'
+  - 'MagicNumber:**/androidInstrumentedTest/**'
+  - 'MagicNumber:**/commonTest/**'
+  - 'LongMethod:**/test/**'
+  - 'ComplexMethod:**/test/**'
+  - 'StringLiteralDuplication:**/test/**'
+  - 'ThrowingExceptionsWithoutMessageOrCause:**/test/**'
+  - 'TooGenericExceptionCaught:**/test/**'
+  - 'LateinitUsage:**/test/**'
+  
+  # Compose-specific exclusions
+  - 'FunctionNaming:@Composable'
+  - 'LongParameterList:@Composable'
+  - 'LongMethod:@Composable'
+  
+  # Generated code exclusions
+  - '*:**/build/**'
+  - '*:**/buildSrc/**'
+  - '*:**/generated/**'

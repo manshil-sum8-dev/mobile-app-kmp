@@ -1,0 +1,121 @@
+package za.co.quantive.app.data.remote.api
+
+import kotlinx.serialization.Serializable
+import za.co.quantive.app.domain.entities.*
+
+/**
+ * RPC functions for heavy computational operations on invoices
+ * These are complex business operations that require backend processing
+ */
+interface InvoiceAnalyticsRpc {
+    
+    /**
+     * RPC: Get comprehensive invoice analytics with complex calculations
+     */
+    suspend fun getInvoiceAnalytics(request: InvoiceAnalyticsRequest): ApiResponse<InvoiceAnalytics>
+    
+    /**
+     * RPC: Get invoice summary with real-time calculations
+     */
+    suspend fun getInvoiceSummary(dateRange: DateRange? = null): ApiResponse<InvoiceSummary>
+    
+    /**
+     * RPC: Generate bulk invoice reports with complex filtering
+     */
+    suspend fun generateBulkReport(request: BulkReportRequest): ApiResponse<BulkReportResponse>
+    
+    /**
+     * RPC: Process bulk invoice operations
+     */
+    suspend fun processBulkInvoices(request: BulkInvoiceRequest): ApiResponse<BulkInvoiceResponse>
+    
+    /**
+     * RPC: Calculate invoice projections and forecasting
+     */
+    suspend fun calculateProjections(request: ProjectionRequest): ApiResponse<InvoiceProjections>
+}
+
+// === RPC REQUEST/RESPONSE MODELS ===
+
+@Serializable
+data class InvoiceAnalyticsRequest(
+    val dateRange: DateRange? = null,
+    val customerId: String? = null,
+    val includeProjections: Boolean = false,
+    val granularity: AnalyticsGranularity = AnalyticsGranularity.MONTHLY
+)
+
+@Serializable
+data class BulkReportRequest(
+    val invoiceIds: List<String>? = null,
+    val filters: InvoiceFilter? = null,
+    val reportType: BulkReportType,
+    val format: ReportFormat = ReportFormat.PDF,
+    val includeDetails: Boolean = true
+)
+
+@Serializable
+data class BulkInvoiceRequest(
+    val operation: BulkOperation,
+    val invoiceIds: List<String>,
+    val parameters: Map<String, String> = emptyMap()
+)
+
+@Serializable
+data class ProjectionRequest(
+    val basedOnMonths: Int = 12,
+    val projectionMonths: Int = 6,
+    val includeSeasonality: Boolean = true,
+    val customerId: String? = null
+)
+
+@Serializable
+data class InvoiceAnalytics(
+    val totalRevenue: Double,
+    val totalInvoices: Int,
+    val averageInvoiceAmount: Double,
+    val paidAmount: Double,
+    val pendingAmount: Double,
+    val overdueAmount: Double,
+    val paymentTrends: List<PaymentTrend>,
+    val customerBreakdown: List<CustomerRevenue>,
+    val monthlyTrends: List<MonthlyRevenue>
+)
+
+@Serializable
+data class BulkReportResponse(
+    val reportUrl: String,
+    val filename: String,
+    val totalInvoices: Int,
+    val expiresAt: String
+)
+
+@Serializable
+data class BulkInvoiceResponse(
+    val processedCount: Int,
+    val failedCount: Int,
+    val errors: List<BulkOperationError>
+)
+
+@Serializable
+data class InvoiceProjections(
+    val projectedRevenue: List<MonthlyProjection>,
+    val confidence: Double,
+    val basedOnData: ProjectionMetadata
+)
+
+enum class BulkReportType {
+    SUMMARY, DETAILED, PAYMENTS, OVERDUE, TAX_REPORT
+}
+
+enum class ReportFormat {
+    PDF, EXCEL, CSV
+}
+
+enum class BulkOperation {
+    SEND, MARK_PAID, MARK_OVERDUE, DELETE, EXPORT
+}
+
+enum class AnalyticsGranularity {
+    DAILY, WEEKLY, MONTHLY, QUARTERLY
+}

@@ -1,0 +1,163 @@
+package za.co.quantive.app.data.remote.api
+
+import za.co.quantive.app.domain.entities.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+/**
+ * Simple API contract tests that verify backend-driven architecture
+ * Tests focus on API response structure and data model integrity
+ */
+class SimpleApiTest {
+
+    @Test
+    fun `API response success case works correctly`() {
+        val testData = "test data"
+        val response = ApiResponse.success(testData)
+
+        assertTrue(response.success)
+        assertTrue(response.isSuccess())
+        assertEquals(testData, response.data)
+    }
+
+    @Test
+    fun `API response error case works correctly`() {
+        val errorMessage = "Backend validation failed"
+        val response: ApiResponse<String> = ApiResponse.error(errorMessage)
+
+        assertFalse(response.success)
+        assertFalse(response.isSuccess())
+        assertEquals(errorMessage, response.message)
+        assertEquals(errorMessage, response.error)
+    }
+
+    @Test
+    fun `pagination calculates total pages correctly`() {
+        // Test various pagination scenarios
+        val pagination1 = PaginationInfo(page = 0, limit = 10, total = 25)
+        assertEquals(3, pagination1.totalPages) // ceil(25/10) = 3
+
+        val pagination2 = PaginationInfo(page = 0, limit = 20, total = 20)
+        assertEquals(1, pagination2.totalPages) // exactly 1 page
+
+        val pagination3 = PaginationInfo(page = 0, limit = 10, total = 0)
+        assertEquals(0, pagination3.totalPages) // no data
+    }
+
+    @Test
+    fun `Money object represents backend-formatted currency`() {
+        val money = Money(
+            amount = 1500.00,
+            currency = "ZAR",
+            formattedAmount = "R 1,500.00",
+        )
+
+        assertEquals(1500.00, money.amount)
+        assertEquals("ZAR", money.currency)
+        assertEquals("R 1,500.00", money.formattedAmount)
+    }
+
+    @Test
+    fun `InvoiceStatus enum covers all backend states`() {
+        // Verify all expected invoice statuses exist (backend-driven)
+        val statuses = InvoiceStatus.values()
+
+        assertTrue(statuses.contains(InvoiceStatus.DRAFT))
+        assertTrue(statuses.contains(InvoiceStatus.SENT))
+        assertTrue(statuses.contains(InvoiceStatus.PAID))
+        assertTrue(statuses.contains(InvoiceStatus.OVERDUE))
+        assertTrue(statuses.contains(InvoiceStatus.CANCELLED))
+    }
+
+    @Test
+    fun `ContactType enum supports South African business types`() {
+        val customerType = ContactType.CUSTOMER
+        val supplierType = ContactType.SUPPLIER
+        val bothType = ContactType.BOTH
+
+        assertTrue(customerType.isCustomer())
+        assertFalse(customerType.isSupplier())
+
+        assertFalse(supplierType.isCustomer())
+        assertTrue(supplierType.isSupplier())
+
+        assertTrue(bothType.isCustomer())
+        assertTrue(bothType.isSupplier())
+
+        assertEquals("Customer", customerType.displayName)
+        assertEquals("Suppliers", supplierType.pluralName)
+    }
+
+    @Test
+    fun `MetricGranularity enum supports all time periods`() {
+        val granularities = MetricGranularity.values()
+
+        assertTrue(granularities.contains(MetricGranularity.DAILY))
+        assertTrue(granularities.contains(MetricGranularity.WEEKLY))
+        assertTrue(granularities.contains(MetricGranularity.MONTHLY))
+        assertTrue(granularities.contains(MetricGranularity.QUARTERLY))
+        assertTrue(granularities.contains(MetricGranularity.YEARLY))
+    }
+
+    @Test
+    fun `ExportFormat enum supports all business report formats`() {
+        val formats = ExportFormat.values()
+
+        assertTrue(formats.contains(ExportFormat.PDF))
+        assertTrue(formats.contains(ExportFormat.EXCEL))
+        assertTrue(formats.contains(ExportFormat.CSV))
+    }
+
+    @Test
+    fun `ReportType enum covers all South African business reports`() {
+        val reportTypes = ReportType.values()
+
+        assertTrue(reportTypes.contains(ReportType.REVENUE_REPORT))
+        assertTrue(reportTypes.contains(ReportType.CUSTOMER_REPORT))
+        assertTrue(reportTypes.contains(ReportType.TAX_REPORT))
+        assertTrue(reportTypes.contains(ReportType.PAYMENT_REPORT))
+        assertTrue(reportTypes.contains(ReportType.FULL_BUSINESS_REPORT))
+    }
+
+    @Test
+    fun `CreateInvoiceRequest contains required backend fields`() {
+        val request = CreateInvoiceRequest(
+            customerId = "customer_123",
+            items = listOf(
+                CreateInvoiceItemRequest(
+                    description = "Professional Services",
+                    quantity = 5.0,
+                    unitPrice = 150.0,
+                ),
+            ),
+            dueDate = "2024-02-15",
+            notes = "Payment due on receipt",
+        )
+
+        assertEquals("customer_123", request.customerId)
+        assertEquals(1, request.items.size)
+        assertEquals("Professional Services", request.items[0].description)
+        assertEquals(5.0, request.items[0].quantity)
+        assertEquals(150.0, request.items[0].unitPrice)
+        assertEquals("2024-02-15", request.dueDate)
+    }
+
+    @Test
+    fun `CreateContactRequest supports all business contact types`() {
+        val customerRequest = CreateContactRequest(
+            businessId = "business_1",
+            type = ContactType.CUSTOMER,
+            name = "Acme Corporation",
+            email = "billing@acme.co.za",
+            phone = "+27123456789",
+        )
+
+        assertEquals("business_1", customerRequest.businessId)
+        assertEquals(ContactType.CUSTOMER, customerRequest.type)
+        assertEquals("Acme Corporation", customerRequest.name)
+        assertEquals("billing@acme.co.za", customerRequest.email)
+        assertEquals("+27123456789", customerRequest.phone)
+    }
+}

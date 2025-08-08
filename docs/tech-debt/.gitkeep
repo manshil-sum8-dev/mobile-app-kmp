@@ -1,0 +1,9 @@
+# Tech Debt Tracking
+
+This directory structure ensures tech debt items are tracked in version control and can be managed through git workflows.
+
+Each tech debt item should be treated as a project requirement with:
+- Clear acceptance criteria
+- Assigned ownership  
+- Progress tracking
+- Code review requirements

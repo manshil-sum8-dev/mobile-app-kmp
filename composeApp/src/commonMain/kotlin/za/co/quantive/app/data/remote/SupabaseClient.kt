@@ -17,13 +17,13 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import za.co.quantive.app.core.env.Env
 import kotlinx.serialization.json.Json
+import za.co.quantive.app.core.env.Env
 
 expect fun createHttpEngine(): HttpClientEngine
 
 class SupabaseClient(
-    internal val accessTokenProvider: suspend () -> String?
+    internal val accessTokenProvider: suspend () -> String?,
 ) {
     internal val json by lazy {
         Json {
@@ -55,7 +55,7 @@ class SupabaseClient(
 
     internal suspend inline fun <reified T> get(
         path: String,
-        params: Map<String, String?> = emptyMap()
+        params: Map<String, String?> = emptyMap(),
     ): T {
         val token = accessTokenProvider()
         val resp = client.get(url(path)) {
@@ -68,7 +68,7 @@ class SupabaseClient(
     internal suspend inline fun <reified T, reified B> post(
         path: String,
         body: B,
-        params: Map<String, String?> = emptyMap()
+        params: Map<String, String?> = emptyMap(),
     ): T {
         val token = accessTokenProvider()
         val resp = client.post(url(path)) {
@@ -81,7 +81,7 @@ class SupabaseClient(
 
     internal suspend inline fun <reified T> delete(
         path: String,
-        params: Map<String, String?> = emptyMap()
+        params: Map<String, String?> = emptyMap(),
     ): T {
         val token = accessTokenProvider()
         val resp = client.delete(url(path)) {

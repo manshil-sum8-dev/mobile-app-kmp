@@ -1,0 +1,164 @@
+package za.co.quantive.app.auth.domain.model
+
+import kotlin.test.*
+
+/**
+ * Unit tests for AuthTokens domain model
+ */
+class AuthTokensTest {
+
+    @Test
+    fun `isExpired should return false for future expiry time`() {
+        // Given
+        val futureExpiry = (System.currentTimeMillis() / 1000) + 3600 // 1 hour from now
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = futureExpiry,
+        )
+
+        // When & Then
+        assertFalse(tokens.isExpired())
+    }
+
+    @Test
+    fun `isExpired should return true for past expiry time`() {
+        // Given
+        val pastExpiry = (System.currentTimeMillis() / 1000) - 3600 // 1 hour ago
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = pastExpiry,
+        )
+
+        // When & Then
+        assertTrue(tokens.isExpired())
+    }
+
+    @Test
+    fun `isExpired should return true when within buffer time`() {
+        // Given
+        val nearExpiry = (System.currentTimeMillis() / 1000) + 60 // 1 minute from now
+        val bufferSeconds = 300L // 5 minutes buffer
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = nearExpiry,
+        )
+
+        // When & Then
+        assertTrue(tokens.isExpired(bufferSeconds))
+    }
+
+    @Test
+    fun `isExpired should return false when outside buffer time`() {
+        // Given
+        val futureExpiry = (System.currentTimeMillis() / 1000) + 3600 // 1 hour from now
+        val bufferSeconds = 300L // 5 minutes buffer
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = futureExpiry,
+        )
+
+        // When & Then
+        assertFalse(tokens.isExpired(bufferSeconds))
+    }
+
+    @Test
+    fun `isValid should return true for non-expired tokens`() {
+        // Given
+        val futureExpiry = (System.currentTimeMillis() / 1000) + 3600 // 1 hour from now
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = futureExpiry,
+        )
+
+        // When & Then
+        assertTrue(tokens.isValid())
+    }
+
+    @Test
+    fun `isValid should return false for expired tokens`() {
+        // Given
+        val pastExpiry = (System.currentTimeMillis() / 1000) - 3600 // 1 hour ago
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = pastExpiry,
+        )
+
+        // When & Then
+        assertFalse(tokens.isValid())
+    }
+
+    @Test
+    fun `default token type should be Bearer`() {
+        // Given
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = System.currentTimeMillis() / 1000 + 3600,
+        )
+
+        // When & Then
+        assertEquals("Bearer", tokens.tokenType)
+    }
+
+    @Test
+    fun `custom token type should be preserved`() {
+        // Given
+        val customTokenType = "Custom"
+        val tokens = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = System.currentTimeMillis() / 1000 + 3600,
+            tokenType = customTokenType,
+        )
+
+        // When & Then
+        assertEquals(customTokenType, tokens.tokenType)
+    }
+
+    @Test
+    fun `tokens should be equal when all properties match`() {
+        // Given
+        val expiry = System.currentTimeMillis() / 1000 + 3600
+        val tokens1 = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = expiry,
+            tokenType = "Bearer",
+        )
+        val tokens2 = AuthTokens(
+            accessToken = "test-token",
+            refreshToken = "test-refresh",
+            expiresAt = expiry,
+            tokenType = "Bearer",
+        )
+
+        // When & Then
+        assertEquals(tokens1, tokens2)
+        assertEquals(tokens1.hashCode(), tokens2.hashCode())
+    }
+
+    @Test
+    fun `tokens should not be equal when properties differ`() {
+        // Given
+        val expiry = System.currentTimeMillis() / 1000 + 3600
+        val tokens1 = AuthTokens(
+            accessToken = "test-token-1",
+            refreshToken = "test-refresh",
+            expiresAt = expiry,
+        )
+        val tokens2 = AuthTokens(
+            accessToken = "test-token-2",
+            refreshToken = "test-refresh",
+            expiresAt = expiry,
+        )
+
+        // When & Then
+        assertNotEquals(tokens1, tokens2)
+    }
+}

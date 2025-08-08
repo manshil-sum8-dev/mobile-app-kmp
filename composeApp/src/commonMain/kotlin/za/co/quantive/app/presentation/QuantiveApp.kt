@@ -1,27 +1,63 @@
 package za.co.quantive.app.presentation
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import kotlinx.coroutines.launch
 import za.co.quantive.app.app.AppServices
 import za.co.quantive.app.auth.Session
-import za.co.quantive.app.presentation.components.*
-import za.co.quantive.app.presentation.theme.QuantiveExpressiveTokens
+import za.co.quantive.app.presentation.components.ButtonGroupItem
+import za.co.quantive.app.presentation.components.QuantiveButtonGroup
+import za.co.quantive.app.presentation.components.QuantiveCard
+import za.co.quantive.app.presentation.components.QuantiveEmptyState
+import za.co.quantive.app.presentation.components.QuantiveFloatingActionButton
+import za.co.quantive.app.presentation.components.QuantiveLoadingState
+import za.co.quantive.app.presentation.components.QuantiveSecondaryButton
+import za.co.quantive.app.presentation.components.QuantiveSectionHeader
+import za.co.quantive.app.presentation.components.QuantiveSplitButton
+import za.co.quantive.app.presentation.onboarding.QuantiveOnboardingFlow
 import za.co.quantive.app.presentation.theme.QuantiveDesignTokens
 import za.co.quantive.app.security.SecureStore
-import kotlinx.coroutines.launch
 
 /**
  * Quantive Main App Content
  * Implements the main navigation and authentication flow
  */
 @Composable
-fun QuantiveAppContent() {
+fun QuantiveApp() {
     var session by remember { mutableStateOf<Session?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -43,16 +79,16 @@ fun QuantiveAppContent() {
         isLoading -> QuantiveLoadingState("Initializing Quantive...")
         loadError != null -> QuantiveErrorScreen(
             error = loadError!!,
-            onRetry = { 
+            onRetry = {
                 loadError = null
                 isLoading = true
-            }
+            },
         )
         session == null -> QuantiveAuthScreen(
             onSignUpSuccess = { newSession ->
                 session = newSession
                 onboardingCompleted = false
-            }
+            },
         )
         !onboardingCompleted -> QuantiveOnboardingFlow(
             onOnboardingComplete = {
@@ -60,7 +96,7 @@ fun QuantiveAppContent() {
                     SecureStore.setOnboardingCompleted(true)
                     onboardingCompleted = true
                 }
-            }
+            },
         )
         else -> QuantiveMainNavigation(
             session = session!!,
@@ -75,7 +111,7 @@ fun QuantiveAppContent() {
                         // Handle logout error
                     }
                 }
-            }
+            },
         )
     }
 }
@@ -86,31 +122,31 @@ fun QuantiveAppContent() {
 @Composable
 fun QuantiveMainNavigation(
     session: Session,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    
+
     val navigationItems = listOf(
         NavigationItem(
             title = "Home",
             icon = Icons.Default.Home,
-            selectedIcon = Icons.Default.Home
+            selectedIcon = Icons.Default.Home,
         ),
         NavigationItem(
-            title = "Invoices", 
-            icon = Icons.Default.List,
-            selectedIcon = Icons.Default.List
+            title = "Invoices",
+            icon = Icons.AutoMirrored.Filled.List,
+            selectedIcon = Icons.AutoMirrored.Filled.List,
         ),
         NavigationItem(
             title = "Contacts",
             icon = Icons.Default.Person,
-            selectedIcon = Icons.Default.Person
+            selectedIcon = Icons.Default.Person,
         ),
         NavigationItem(
             title = "More",
             icon = Icons.Default.Menu,
-            selectedIcon = Icons.Default.Menu
-        )
+            selectedIcon = Icons.Default.Menu,
+        ),
     )
 
     Scaffold(
@@ -118,14 +154,14 @@ fun QuantiveMainNavigation(
             QuantiveBottomNavigation(
                 items = navigationItems,
                 selectedIndex = selectedTab,
-                onItemSelected = { selectedTab = it }
+                onItemSelected = { selectedTab = it },
             )
-        }
+        },
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(paddingValues),
         ) {
             when (selectedTab) {
                 0 -> QuantiveDashboardScreen(session = session)
@@ -143,7 +179,7 @@ fun QuantiveMainNavigation(
 data class NavigationItem(
     val title: String,
     val icon: ImageVector,
-    val selectedIcon: ImageVector
+    val selectedIcon: ImageVector,
 )
 
 /**
@@ -153,12 +189,12 @@ data class NavigationItem(
 fun QuantiveBottomNavigation(
     items: List<NavigationItem>,
     selectedIndex: Int,
-    onItemSelected: (Int) -> Unit
+    onItemSelected: (Int) -> Unit,
 ) {
     NavigationBar(
         modifier = Modifier.height(QuantiveDesignTokens.Dimensions.BottomNavigationHeight),
         containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = QuantiveDesignTokens.Elevation.Small
+        tonalElevation = QuantiveDesignTokens.Elevation.Small,
     ) {
         items.forEachIndexed { index, item ->
             NavigationBarItem(
@@ -167,13 +203,13 @@ fun QuantiveBottomNavigation(
                 icon = {
                     Icon(
                         imageVector = if (selectedIndex == index) item.selectedIcon else item.icon,
-                        contentDescription = item.title
+                        contentDescription = item.title,
                     )
                 },
                 label = {
                     Text(
                         text = item.title,
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
@@ -181,8 +217,8 @@ fun QuantiveBottomNavigation(
                     selectedTextColor = MaterialTheme.colorScheme.primary,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
             )
         }
     }
@@ -194,69 +230,69 @@ fun QuantiveBottomNavigation(
 @Composable
 fun QuantiveDashboardScreen(session: Session) {
     var userProfile by remember { mutableStateOf<Pair<String, String>?>(null) }
-    
+
     LaunchedEffect(Unit) {
         userProfile = SecureStore.getUserProfile()
     }
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(QuantiveDesignTokens.Spacing.Medium),
-        verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Medium)
+        verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Medium),
     ) {
         // Welcome Section
         QuantiveSectionHeader(
             title = if (userProfile != null) "Welcome back, ${userProfile!!.first}!" else "Welcome to Quantive!",
-            subtitle = "Your business management dashboard"
+            subtitle = "Your business management dashboard",
         )
-        
+
         // Quick Stats Cards
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Small)
+            horizontalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Small),
         ) {
             QuantiveCard(
                 modifier = Modifier.weight(1f),
-                onClick = { /* Navigate to invoices */ }
+                onClick = { /* Navigate to invoices */ },
             ) {
                 Text(
                     text = "R 0.00",
                     style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
                     text = "Outstanding",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            
+
             QuantiveCard(
                 modifier = Modifier.weight(1f),
-                onClick = { /* Navigate to invoices */ }
+                onClick = { /* Navigate to invoices */ },
             ) {
                 Text(
                     text = "0",
                     style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = MaterialTheme.colorScheme.secondary,
                 )
                 Text(
                     text = "Invoices",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        
+
         // Quick Actions with Material 3 Expressive components
         QuantiveSectionHeader(
             title = "Quick Actions",
-            subtitle = "Common tasks and shortcuts"
+            subtitle = "Common tasks and shortcuts",
         )
-        
+
         Column(
-            verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Small)
+            verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Small),
         ) {
             // Enhanced split button for main invoice action
             QuantiveSplitButton(
@@ -264,15 +300,15 @@ fun QuantiveDashboardScreen(session: Session) {
                 onPrimaryClick = { /* Navigate to invoice creation */ },
                 onSecondaryClick = { /* Show invoice options menu */ },
                 icon = Icons.Default.Add,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
-            
+
             // Button group for quick actions
             QuantiveButtonGroup(
                 items = listOf(
                     ButtonGroupItem("Contact", "contact"),
                     ButtonGroupItem("Reports", "reports"),
-                    ButtonGroupItem("Settings", "settings")
+                    ButtonGroupItem("Settings", "settings"),
                 ),
                 selectedValue = null, // No default selection
                 onSelectionChange = { action ->
@@ -282,39 +318,39 @@ fun QuantiveDashboardScreen(session: Session) {
                         "settings" -> { /* Navigate to settings */ }
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
         }
-        
+
         // Recent Activity Card with enhanced styling
         QuantiveCard(
             modifier = Modifier.fillMaxWidth(),
-            expressiveMotion = true
+            expressiveMotion = true,
         ) {
             QuantiveSectionHeader(
                 title = "Recent Activity",
-                subtitle = "Latest business updates"
+                subtitle = "Latest business updates",
             )
-            
+
             QuantiveEmptyState(
                 title = "No recent activity",
                 subtitle = "Start by creating your first invoice",
                 icon = Icons.Default.Refresh,
                 actionText = "Create Invoice",
-                onActionClick = { /* Navigate to invoice creation */ }
+                onActionClick = { /* Navigate to invoice creation */ },
             )
         }
-        
+
         // Floating Action Button for quick invoice creation
         Box(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomEnd
+            contentAlignment = Alignment.BottomEnd,
         ) {
             QuantiveFloatingActionButton(
                 onClick = { /* Quick create invoice */ },
                 icon = Icons.Default.Add,
                 contentDescription = "Quick create invoice",
-                modifier = Modifier.padding(QuantiveDesignTokens.Spacing.Medium)
+                modifier = Modifier.padding(QuantiveDesignTokens.Spacing.Medium),
             )
         }
     }
@@ -327,14 +363,14 @@ fun QuantiveDashboardScreen(session: Session) {
 fun QuantiveInvoicesScreen() {
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         QuantiveEmptyState(
             title = "No invoices yet",
             subtitle = "Create your first invoice to get started",
-            icon = Icons.Default.List,
+            icon = Icons.AutoMirrored.Filled.List,
             actionText = "Create Invoice",
-            onActionClick = { /* Navigate to invoice creation */ }
+            onActionClick = { /* Navigate to invoice creation */ },
         )
     }
 }
@@ -346,14 +382,14 @@ fun QuantiveInvoicesScreen() {
 fun QuantiveContactsScreen() {
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         QuantiveEmptyState(
             title = "No contacts yet",
             subtitle = "Add customers and suppliers to manage your business relationships",
             icon = Icons.Default.Person,
             actionText = "Add Contact",
-            onActionClick = { /* Navigate to contact creation */ }
+            onActionClick = { /* Navigate to contact creation */ },
         )
     }
 }
@@ -367,76 +403,76 @@ fun QuantiveMoreScreen(onLogout: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .padding(QuantiveDesignTokens.Spacing.Medium),
-        verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Medium)
+        verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Medium),
     ) {
         QuantiveSectionHeader(
             title = "Settings & More",
-            subtitle = "Manage your Quantive experience"
+            subtitle = "Manage your Quantive experience",
         )
-        
+
         // Settings Options
         Column(
-            verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Small)
+            verticalArrangement = Arrangement.spacedBy(QuantiveDesignTokens.Spacing.Small),
         ) {
             QuantiveCard(
-                onClick = { /* Navigate to business profile */ }
+                onClick = { /* Navigate to business profile */ },
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Default.AccountBox,
                         contentDescription = null,
-                        modifier = Modifier.padding(end = QuantiveDesignTokens.Spacing.Medium)
+                        modifier = Modifier.padding(end = QuantiveDesignTokens.Spacing.Medium),
                     )
                     Column {
                         Text(
                             text = "Business Profile",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
                         )
                         Text(
                             text = "Manage your business information",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
-            
+
             QuantiveCard(
-                onClick = { /* Navigate to settings */ }
+                onClick = { /* Navigate to settings */ },
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = null,
-                        modifier = Modifier.padding(end = QuantiveDesignTokens.Spacing.Medium)
+                        modifier = Modifier.padding(end = QuantiveDesignTokens.Spacing.Medium),
                     )
                     Column {
                         Text(
                             text = "App Settings",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
                         )
                         Text(
                             text = "Customize your app experience",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.weight(1f))
-        
+
         // Logout Button
         QuantiveSecondaryButton(
             text = "Sign Out",
             onClick = onLogout,
-            icon = Icons.Default.ExitToApp,
-            modifier = Modifier.fillMaxWidth()
+            icon = Icons.AutoMirrored.Filled.ExitToApp,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

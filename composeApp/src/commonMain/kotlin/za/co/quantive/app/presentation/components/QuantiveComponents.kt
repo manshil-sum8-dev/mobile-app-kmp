@@ -1,28 +1,56 @@
 package za.co.quantive.app.presentation.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardColors
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -30,8 +58,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import za.co.quantive.app.presentation.theme.QuantiveDesignTokens
-import za.co.quantive.app.presentation.theme.QuantiveTheme
 import za.co.quantive.app.presentation.theme.QuantiveExpressiveTokens
+import za.co.quantive.app.presentation.theme.QuantiveTheme
 
 /**
  * Quantive Card Component with Material 3 Expressive features
@@ -47,25 +75,25 @@ fun QuantiveCard(
     colors: CardColors = CardDefaults.cardColors(),
     contentDescription: String? = null,
     expressiveMotion: Boolean = true,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    
+
     // Expressive animations
     val animatedElevation by animateDpAsState(
         targetValue = if (isPressed && onClick != null) QuantiveExpressiveTokens.Elevation.ExpressiveMedium else elevation,
         animationSpec = tween(
             durationMillis = QuantiveExpressiveTokens.Motion.ExpressiveShort,
-            easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut
-        )
+            easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut,
+        ),
     )
-    
+
     val animatedScale by animateFloatAsState(
         targetValue = if (isPressed && onClick != null && expressiveMotion) QuantiveExpressiveTokens.InteractionStates.PressedScale else 1f,
-        animationSpec = QuantiveExpressiveTokens.Motion.SpringGentle
+        animationSpec = QuantiveExpressiveTokens.Motion.SpringGentle,
     )
-    
+
     // Dynamic shape morphing
     val shape by remember {
         derivedStateOf {
@@ -76,7 +104,7 @@ fun QuantiveCard(
             }
         }
     }
-    
+
     Card(
         onClick = onClick ?: {},
         modifier = modifier
@@ -88,17 +116,19 @@ fun QuantiveCard(
                             this.contentDescription = contentDescription
                         }
                     }
-                } else Modifier
+                } else {
+                    Modifier
+                },
             ),
         enabled = enabled && onClick != null,
         shape = shape,
         colors = colors,
         elevation = CardDefaults.cardElevation(defaultElevation = animatedElevation),
-        interactionSource = interactionSource
+        interactionSource = interactionSource,
     ) {
         Column(
             modifier = Modifier.padding(QuantiveExpressiveTokens.Spacing.CardPadding),
-            content = content
+            content = content,
         )
     }
 }
@@ -115,11 +145,11 @@ fun QuantivePrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     icon: ImageVector? = null,
-    expressiveMotion: Boolean = true
+    expressiveMotion: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    
+
     // Expressive color animation
     val animatedContainerColor by animateColorAsState(
         targetValue = if (isPressed && enabled && !loading) {
@@ -129,25 +159,27 @@ fun QuantivePrimaryButton(
         },
         animationSpec = tween(
             durationMillis = QuantiveExpressiveTokens.Motion.ExpressiveShort,
-            easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut
-        )
+            easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut,
+        ),
     )
-    
+
     // Spring-based scale animation
     val animatedScale by animateFloatAsState(
         targetValue = if (isPressed && enabled && !loading && expressiveMotion) {
             QuantiveExpressiveTokens.InteractionStates.PressedScale
-        } else 1f,
-        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy
+        } else {
+            1f
+        },
+        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy,
     )
-    
+
     // Dynamic shape morphing
     val shape by remember {
         derivedStateOf {
             QuantiveExpressiveTokens.Shapes.morphingButton(pressed = isPressed, selected = false)
         }
     }
-    
+
     Button(
         onClick = onClick,
         modifier = modifier
@@ -156,35 +188,35 @@ fun QuantivePrimaryButton(
         enabled = enabled && !loading,
         colors = ButtonDefaults.buttonColors(
             containerColor = animatedContainerColor,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
         shape = shape,
         contentPadding = PaddingValues(
             horizontal = QuantiveExpressiveTokens.Spacing.ComponentSpacing,
-            vertical = QuantiveDesignTokens.Spacing.Small
+            vertical = QuantiveDesignTokens.Spacing.Small,
         ),
-        interactionSource = interactionSource
+        interactionSource = interactionSource,
     ) {
         if (loading) {
             QuantiveExpressiveLoadingIndicator(
                 modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconSmall),
-                color = MaterialTheme.colorScheme.onPrimary
+                color = MaterialTheme.colorScheme.onPrimary,
             )
             Spacer(modifier = Modifier.width(QuantiveDesignTokens.Spacing.Small))
         } else if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium)
+                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium),
             )
             Spacer(modifier = Modifier.width(QuantiveExpressiveTokens.Spacing.TextSpacing))
         }
-        
+
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -199,42 +231,39 @@ fun QuantiveSecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
 ) {
     OutlinedButton(
         onClick = onClick,
         modifier = modifier.height(QuantiveDesignTokens.Dimensions.ButtonHeightLarge),
         enabled = enabled,
         colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = MaterialTheme.colorScheme.primary
+            contentColor = MaterialTheme.colorScheme.primary,
         ),
-        border = ButtonDefaults.outlinedButtonBorder.copy(
+        border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            brush = androidx.compose.foundation.BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.primary
-            ).brush
+            color = MaterialTheme.colorScheme.primary,
         ),
         shape = RoundedCornerShape(QuantiveDesignTokens.Radius.Medium),
         contentPadding = PaddingValues(
             horizontal = QuantiveDesignTokens.Spacing.Medium,
-            vertical = QuantiveDesignTokens.Spacing.Small
-        )
+            vertical = QuantiveDesignTokens.Spacing.Small,
+        ),
     ) {
         if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium)
+                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium),
             )
             Spacer(modifier = Modifier.width(QuantiveDesignTokens.Spacing.Small))
         }
-        
+
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -249,34 +278,34 @@ fun QuantiveTextButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
 ) {
     TextButton(
         onClick = onClick,
         modifier = modifier.height(QuantiveDesignTokens.Dimensions.ButtonHeightLarge),
         enabled = enabled,
         colors = ButtonDefaults.textButtonColors(
-            contentColor = MaterialTheme.colorScheme.primary
+            contentColor = MaterialTheme.colorScheme.primary,
         ),
         contentPadding = PaddingValues(
             horizontal = QuantiveDesignTokens.Spacing.Medium,
-            vertical = QuantiveDesignTokens.Spacing.Small
-        )
+            vertical = QuantiveDesignTokens.Spacing.Small,
+        ),
     ) {
         if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium)
+                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium),
             )
             Spacer(modifier = Modifier.width(QuantiveDesignTokens.Spacing.Small))
         }
-        
+
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -300,7 +329,7 @@ fun QuantiveTextField(
     readOnly: Boolean = false,
     singleLine: Boolean = true,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    isPassword: Boolean = false
+    isPassword: Boolean = false,
 ) {
     Column(modifier = modifier) {
         OutlinedTextField(
@@ -320,10 +349,10 @@ fun QuantiveTextField(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                errorBorderColor = MaterialTheme.colorScheme.error
-            )
+                errorBorderColor = MaterialTheme.colorScheme.error,
+            ),
         )
-        
+
         if (error != null) {
             Text(
                 text = error,
@@ -331,8 +360,8 @@ fun QuantiveTextField(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(
                     start = QuantiveDesignTokens.Spacing.Medium,
-                    top = QuantiveDesignTokens.Spacing.Tiny
-                )
+                    top = QuantiveDesignTokens.Spacing.Tiny,
+                ),
             )
         }
     }
@@ -347,13 +376,13 @@ fun QuantiveCurrencyText(
     money: za.co.quantive.app.domain.entities.Money,
     modifier: Modifier = Modifier,
     style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
-    color: Color = QuantiveTheme.extendedColors.currency
+    color: Color = QuantiveTheme.extendedColors.currency,
 ) {
     Text(
         text = money.formattedAmount ?: "R 0.00", // Backend provides formatted string
         modifier = modifier,
         style = style,
-        color = color
+        color = color,
     )
 }
 
@@ -367,13 +396,14 @@ fun QuantiveCurrencyText(
     amount: Double,
     modifier: Modifier = Modifier,
     style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
-    color: Color = QuantiveTheme.extendedColors.currency
+    color: Color = QuantiveTheme.extendedColors.currency,
 ) {
+    val formattedAmount = (amount * 100).toInt() / 100.0 // Round to 2 decimal places
     Text(
-        text = "R ${String.format("%.2f", amount)}", // Fallback formatting only
+        text = "R $formattedAmount", // Fallback formatting only
         modifier = modifier,
         style = style,
-        color = color
+        color = color,
     )
 }
 
@@ -386,25 +416,25 @@ fun QuantiveStatusBadge(
     text: String,
     backgroundColor: Color,
     textColor: Color = MaterialTheme.colorScheme.onPrimary,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .background(
                 color = backgroundColor,
-                shape = RoundedCornerShape(QuantiveDesignTokens.Radius.Small)
+                shape = RoundedCornerShape(QuantiveDesignTokens.Radius.Small),
             )
             .padding(
                 horizontal = QuantiveDesignTokens.Spacing.Small,
-                vertical = QuantiveDesignTokens.Spacing.Tiny
+                vertical = QuantiveDesignTokens.Spacing.Tiny,
             ),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
             color = textColor,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -418,31 +448,31 @@ fun QuantiveSectionHeader(
     title: String,
     subtitle: String? = null,
     modifier: Modifier = Modifier,
-    action: @Composable (() -> Unit)? = null
+    action: @Composable (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.semantics { heading() }
+                modifier = Modifier.semantics { heading() },
             )
-            
+
             if (subtitle != null) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Tiny)
+                    modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Tiny),
                 )
             }
         }
-        
+
         if (action != null) {
             action()
         }
@@ -457,7 +487,7 @@ fun QuantiveSectionHeader(
 fun QuantiveExpressiveLoadingIndicator(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary,
-    strokeWidth: androidx.compose.ui.unit.Dp = 4.dp
+    strokeWidth: androidx.compose.ui.unit.Dp = 4.dp,
 ) {
     val infiniteTransition = rememberInfiniteTransition()
     val scale by infiniteTransition.animateFloat(
@@ -466,16 +496,16 @@ fun QuantiveExpressiveLoadingIndicator(
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = QuantiveExpressiveTokens.Motion.ExpressiveMedium,
-                easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseInOut
+                easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseInOut,
             ),
-            repeatMode = RepeatMode.Reverse
-        )
+            repeatMode = RepeatMode.Reverse,
+        ),
     )
-    
+
     CircularProgressIndicator(
         modifier = modifier.scale(scale),
         color = color,
-        strokeWidth = strokeWidth
+        strokeWidth = strokeWidth,
     )
 }
 
@@ -486,26 +516,26 @@ fun QuantiveExpressiveLoadingIndicator(
 @Composable
 fun QuantiveLoadingState(
     message: String = "Loading...",
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
         ) {
             QuantiveExpressiveLoadingIndicator(
                 modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconLarge),
-                color = QuantiveExpressiveTokens.Colors.ExpressivePrimary
+                color = QuantiveExpressiveTokens.Colors.ExpressivePrimary,
             )
-            
+
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = QuantiveExpressiveTokens.Spacing.ComponentSpacing)
+                modifier = Modifier.padding(top = QuantiveExpressiveTokens.Spacing.ComponentSpacing),
             )
         }
     }
@@ -522,15 +552,15 @@ fun QuantiveEmptyState(
     icon: ImageVector? = null,
     actionText: String? = null,
     onActionClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
         ) {
             if (icon != null) {
                 Icon(
@@ -539,32 +569,32 @@ fun QuantiveEmptyState(
                     modifier = Modifier
                         .size(QuantiveDesignTokens.Dimensions.IconXLarge)
                         .padding(bottom = QuantiveDesignTokens.Spacing.Medium),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            
+
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
-            
+
             if (subtitle != null) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Small)
+                    modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Small),
                 )
             }
-            
+
             if (actionText != null && onActionClick != null) {
                 QuantivePrimaryButton(
                     text = actionText,
                     onClick = onActionClick,
-                    modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Large)
+                    modifier = Modifier.padding(top = QuantiveDesignTokens.Spacing.Large),
                 )
             }
         }
@@ -577,7 +607,7 @@ fun QuantiveEmptyState(
 data class ButtonGroupItem(
     val text: String,
     val value: String,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
 )
 
 @Composable
@@ -586,30 +616,32 @@ fun QuantiveButtonGroup(
     selectedValue: String?,
     onSelectionChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
 ) {
     Row(modifier = modifier) {
         items.forEachIndexed { index, item ->
             val isSelected = item.value == selectedValue
             val isFirst = index == 0
             val isLast = index == items.lastIndex
-            
+
             val shape = when {
                 isFirst -> QuantiveExpressiveTokens.Shapes.ConnectedStart
                 isLast -> QuantiveExpressiveTokens.Shapes.ConnectedEnd
                 else -> QuantiveExpressiveTokens.Shapes.ConnectedMiddle
             }
-            
+
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
-            
+
             val animatedScale by animateFloatAsState(
                 targetValue = if (isPressed && item.enabled && enabled) {
                     QuantiveExpressiveTokens.InteractionStates.PressedScale
-                } else 1f,
-                animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy
+                } else {
+                    1f
+                },
+                animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy,
             )
-            
+
             val containerColor by animateColorAsState(
                 targetValue = when {
                     isSelected -> QuantiveExpressiveTokens.Colors.ExpressivePrimary
@@ -618,18 +650,18 @@ fun QuantiveButtonGroup(
                 },
                 animationSpec = tween(
                     durationMillis = QuantiveExpressiveTokens.Motion.ExpressiveShort,
-                    easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut
-                )
+                    easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut,
+                ),
             )
-            
+
             val contentColor by animateColorAsState(
                 targetValue = if (isSelected) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
                     MaterialTheme.colorScheme.onSurface
-                }
+                },
             )
-            
+
             Button(
                 onClick = { onSelectionChange(item.value) },
                 modifier = Modifier
@@ -639,25 +671,24 @@ fun QuantiveButtonGroup(
                 enabled = item.enabled && enabled,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = containerColor,
-                    contentColor = contentColor
+                    contentColor = contentColor,
                 ),
                 shape = shape,
                 border = if (!isSelected) {
-                    ButtonDefaults.outlinedButtonBorder.copy(
+                    androidx.compose.foundation.BorderStroke(
                         width = 1.dp,
-                        brush = androidx.compose.foundation.BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline
-                        ).brush
+                        color = MaterialTheme.colorScheme.outline,
                     )
-                } else null,
-                interactionSource = interactionSource
+                } else {
+                    null
+                },
+                interactionSource = interactionSource,
             ) {
                 Text(
                     text = item.text,
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -675,28 +706,32 @@ fun QuantiveSplitButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
-    dropdownIcon: ImageVector = Icons.Default.KeyboardArrowDown
+    dropdownIcon: ImageVector = Icons.Default.KeyboardArrowDown,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPrimaryPressed by interactionSource.collectIsPressedAsState()
-    
+
     val secondaryInteractionSource = remember { MutableInteractionSource() }
     val isSecondaryPressed by secondaryInteractionSource.collectIsPressedAsState()
-    
+
     val primaryScale by animateFloatAsState(
         targetValue = if (isPrimaryPressed && enabled) {
             QuantiveExpressiveTokens.InteractionStates.PressedScale
-        } else 1f,
-        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy
+        } else {
+            1f
+        },
+        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy,
     )
-    
+
     val secondaryScale by animateFloatAsState(
         targetValue = if (isSecondaryPressed && enabled) {
             QuantiveExpressiveTokens.InteractionStates.PressedScale
-        } else 1f,
-        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy
+        } else {
+            1f
+        },
+        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy,
     )
-    
+
     Row(modifier = modifier) {
         // Primary Button
         Button(
@@ -708,28 +743,28 @@ fun QuantiveSplitButton(
             enabled = enabled,
             colors = ButtonDefaults.buttonColors(
                 containerColor = QuantiveExpressiveTokens.Colors.ExpressivePrimary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
             shape = QuantiveExpressiveTokens.Shapes.ConnectedStart,
-            interactionSource = interactionSource
+            interactionSource = interactionSource,
         ) {
             if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium)
+                    modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium),
                 )
                 Spacer(modifier = Modifier.width(QuantiveExpressiveTokens.Spacing.TextSpacing))
             }
-            
+
             Text(
                 text = primaryText,
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        
+
         // Secondary Button (Dropdown)
         Button(
             onClick = onSecondaryClick,
@@ -740,16 +775,16 @@ fun QuantiveSplitButton(
             enabled = enabled,
             colors = ButtonDefaults.buttonColors(
                 containerColor = QuantiveExpressiveTokens.Colors.ExpressivePrimaryVariant,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
             shape = QuantiveExpressiveTokens.Shapes.ConnectedEnd,
             contentPadding = PaddingValues(0.dp),
-            interactionSource = secondaryInteractionSource
+            interactionSource = secondaryInteractionSource,
         ) {
             Icon(
                 imageVector = dropdownIcon,
                 contentDescription = "More options",
-                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium)
+                modifier = Modifier.size(QuantiveDesignTokens.Dimensions.IconMedium),
             )
         }
     }
@@ -766,11 +801,11 @@ fun QuantiveFloatingActionButton(
     contentDescription: String? = null,
     containerColor: Color = QuantiveExpressiveTokens.Colors.ExpressivePrimary,
     contentColor: Color = MaterialTheme.colorScheme.onPrimary,
-    expressiveMotion: Boolean = true
+    expressiveMotion: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    
+
     val animatedElevation by animateDpAsState(
         targetValue = if (isPressed) {
             QuantiveExpressiveTokens.Elevation.FABPressed
@@ -779,17 +814,19 @@ fun QuantiveFloatingActionButton(
         },
         animationSpec = tween(
             durationMillis = QuantiveExpressiveTokens.Motion.ExpressiveShort,
-            easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut
-        )
+            easing = QuantiveExpressiveTokens.Motion.ExpressiveEaseOut,
+        ),
     )
-    
+
     val animatedScale by animateFloatAsState(
         targetValue = if (isPressed && expressiveMotion) {
             QuantiveExpressiveTokens.InteractionStates.PressedScale
-        } else 1f,
-        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy
+        } else {
+            1f
+        },
+        animationSpec = QuantiveExpressiveTokens.Motion.SpringBouncy,
     )
-    
+
     FloatingActionButton(
         onClick = onClick,
         modifier = modifier.scale(animatedScale),
@@ -798,13 +835,13 @@ fun QuantiveFloatingActionButton(
         contentColor = contentColor,
         elevation = FloatingActionButtonDefaults.elevation(
             defaultElevation = animatedElevation,
-            pressedElevation = QuantiveExpressiveTokens.Elevation.FABPressed
+            pressedElevation = QuantiveExpressiveTokens.Elevation.FABPressed,
         ),
-        interactionSource = interactionSource
+        interactionSource = interactionSource,
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = contentDescription
+            contentDescription = contentDescription,
         )
     }
 }

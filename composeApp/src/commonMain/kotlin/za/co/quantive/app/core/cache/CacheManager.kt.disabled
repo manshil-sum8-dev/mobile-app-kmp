@@ -1,0 +1,246 @@
+package za.co.quantive.app.core.cache
+
+import za.co.quantive.app.data.local.ContactCacheImpl
+import za.co.quantive.app.data.local.InvoiceCacheImpl
+import za.co.quantive.app.data.local.AnalyticsCacheImpl
+import kotlin.time.Duration.Companion.minutes
+
+/**
+ * Central cache management for coordinating all app caches
+ * Provides unified cache operations and monitoring
+ */
+class CacheManager(
+    private val smartCache: SmartCache,
+    private val invalidationManager: CacheInvalidationManager,
+    private val contactCache: ContactCacheImpl,
+    private val invoiceCache: InvoiceCacheImpl,
+    private val analyticsCache: AnalyticsCacheImpl
+) {
+    
+    /**
+     * Initialize cache system
+     */
+    suspend fun initialize() {
+        // Perform any startup cache operations
+        cleanupExpiredEntries()
+    }
+    
+    /**
+     * Clear all caches (useful for logout, data corruption, etc.)
+     */
+    suspend fun clearAllCaches() {
+        smartCache.clearAll()
+        invalidationManager.onUserLogout()
+    }
+    
+    /**
+     * Clear caches for specific feature
+     */
+    suspend fun clearFeatureCache(feature: CacheFeature) {
+        when (feature) {
+            CacheFeature.CONTACTS -> {
+                contactCache.clearCache()
+            }
+            CacheFeature.INVOICES -> {
+                invoiceCache.clearCache()
+            }
+            CacheFeature.ANALYTICS -> {
+                analyticsCache.clearCache()
+            }
+            CacheFeature.ALL -> {
+                clearAllCaches()
+            }
+        }
+    }
+    
+    /**
+     * Force refresh specific feature (invalidate + clear cache)
+     */
+    suspend fun forceRefresh(feature: String) {
+        invalidationManager.onManualRefresh(feature)
+    }
+    
+    /**
+     * Get comprehensive cache statistics
+     */
+    suspend fun getCacheStats(): ComprehensiveCacheStats {
+        val smartCacheStats = smartCache.getStats()
+        val contactStats = contactCache.getCacheStats()
+        val invoiceStats = invoiceCache.getCacheStats()
+        
+        return ComprehensiveCacheStats(
+            totalMemoryEntries = smartCacheStats.totalMemoryEntries,
+            totalPersistentEntries = smartCacheStats.persistentEntries,
+            fastCacheSize = smartCacheStats.fastCacheSize,
+            standardCacheSize = smartCacheStats.standardCacheSize,
+            referenceCacheSize = smartCacheStats.referenceCacheSize,
+            contactEntries = contactStats.totalContactEntries,
+            invoiceEntries = invoiceStats.totalInvoiceEntries,
+            estimatedMemoryUsage = calculateEstimatedMemoryUsage(smartCacheStats)
+        )
+    }
+    
+    /**
+     * Perform periodic cache maintenance
+     */
+    suspend fun performMaintenance() {
+        cleanupExpiredEntries()
+        optimizeCacheDistribution()
+    }
+    
+    /**
+     * Clean up expired cache entries
+     */
+    suspend fun cleanupExpiredEntries() {
+        invalidationManager.cleanupExpiredEntries()
+        // The smart cache automatically handles expired entries on access
+    }
+    
+    /**
+     * Check cache health and performance
+     */
+    suspend fun getCacheHealth(): CacheHealth {
+        val stats = getCacheStats()
+        
+        val memoryPressure = when {
+            stats.totalMemoryEntries > 1000 -> CacheMemoryPressure.HIGH
+            stats.totalMemoryEntries > 500 -> CacheMemoryPressure.MEDIUM
+            else -> CacheMemoryPressure.LOW
+        }
+        
+        val distribution = CacheDistribution(
+            fastCacheUsage = stats.fastCacheSize.toFloat() / 100f, // Max 100 entries
+            standardCacheUsage = stats.standardCacheSize.toFloat() / 500f, // Max 500 entries  
+            referenceCacheUsage = stats.referenceCacheSize.toFloat() / 50f // Max 50 entries
+        )
+        
+        return CacheHealth(
+            memoryPressure = memoryPressure,
+            distribution = distribution,
+            estimatedHitRatio = calculateEstimatedHitRatio(stats),
+            recommendedAction = getRecommendedAction(memoryPressure, distribution)
+        )
+    }
+    
+    /**
+     * Warm up caches with commonly accessed data
+     */
+    suspend fun warmUpCaches() {
+        // This would typically be called during app startup or idle time
+        // to pre-populate caches with frequently accessed data
+        
+        // Note: In a backend-first architecture, we don't want to over-warm
+        // caches as this defeats the purpose of smart caching
+        println("Cache warm-up initiated (backend-first strategy)")
+    }
+    
+    /**
+     * Handle low memory situations
+     */
+    suspend fun handleMemoryPressure() {
+        // Aggressively clean up least recently used entries
+        // The LRU cache will automatically evict entries as needed
+        
+        // Clear analytics cache first (least critical)
+        analyticsCache.clearCache()
+        
+        // Force cleanup of expired entries
+        cleanupExpiredEntries()
+        
+        println("Memory pressure handled - cleared analytics cache")
+    }
+    
+    private fun calculateEstimatedMemoryUsage(stats: CacheStats): Long {
+        // Rough estimation: 2KB average per cache entry
+        return stats.totalMemoryEntries * 2048L
+    }
+    
+    private fun calculateEstimatedHitRatio(stats: ComprehensiveCacheStats): Float {
+        // This would be based on actual usage metrics in a real implementation
+        // For now, return estimated values based on cache guidelines
+        return when {
+            stats.referenceCacheSize > 20 -> 0.85f // Settings, rates have high hit ratios
+            stats.standardCacheSize > 200 -> 0.75f // Good cache population
+            stats.fastCacheSize > 50 -> 0.70f // Recent items cache active
+            else -> 0.50f // Lower hit ratio with sparse cache
+        }
+    }
+    
+    private fun optimizeCacheDistribution() {
+        // The LRU caches handle this automatically
+        // This method could implement more sophisticated cache distribution logic
+        // in the future if needed
+    }
+    
+    private fun getRecommendedAction(
+        memoryPressure: CacheMemoryPressure,
+        distribution: CacheDistribution
+    ): CacheRecommendedAction {
+        return when {
+            memoryPressure == CacheMemoryPressure.HIGH -> CacheRecommendedAction.CLEANUP_REQUIRED
+            distribution.standardCacheUsage > 0.9f -> CacheRecommendedAction.OPTIMIZE_DISTRIBUTION
+            distribution.fastCacheUsage > 0.9f -> CacheRecommendedAction.INCREASE_FAST_CACHE_SIZE
+            else -> CacheRecommendedAction.NO_ACTION_NEEDED
+        }
+    }
+}
+
+/**
+ * Cache feature categories for targeted operations
+ */
+enum class CacheFeature {
+    CONTACTS,
+    INVOICES, 
+    ANALYTICS,
+    ALL
+}
+
+/**
+ * Memory pressure levels
+ */
+enum class CacheMemoryPressure {
+    LOW, MEDIUM, HIGH
+}
+
+/**
+ * Recommended cache actions
+ */
+enum class CacheRecommendedAction {
+    NO_ACTION_NEEDED,
+    CLEANUP_REQUIRED,
+    OPTIMIZE_DISTRIBUTION,
+    INCREASE_FAST_CACHE_SIZE
+}
+
+/**
+ * Comprehensive cache statistics
+ */
+data class ComprehensiveCacheStats(
+    val totalMemoryEntries: Int,
+    val totalPersistentEntries: Int,
+    val fastCacheSize: Int,
+    val standardCacheSize: Int,
+    val referenceCacheSize: Int,
+    val contactEntries: Int,
+    val invoiceEntries: Int,
+    val estimatedMemoryUsage: Long // in bytes
+)
+
+/**
+ * Cache distribution across buckets
+ */
+data class CacheDistribution(
+    val fastCacheUsage: Float, // 0.0 to 1.0
+    val standardCacheUsage: Float, // 0.0 to 1.0
+    val referenceCacheUsage: Float // 0.0 to 1.0
+)
+
+/**
+ * Overall cache health assessment
+ */
+data class CacheHealth(
+    val memoryPressure: CacheMemoryPressure,
+    val distribution: CacheDistribution,
+    val estimatedHitRatio: Float,
+    val recommendedAction: CacheRecommendedAction
+)

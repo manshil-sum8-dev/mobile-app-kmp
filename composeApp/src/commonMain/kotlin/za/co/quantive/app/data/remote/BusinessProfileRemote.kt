@@ -1,8 +1,8 @@
 package za.co.quantive.app.data.remote
 
-import za.co.quantive.app.domain.profile.BusinessProfile
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import za.co.quantive.app.domain.profile.BusinessProfile
 
 @Serializable
 private data class BusinessProfileDto(
@@ -15,7 +15,7 @@ private data class BusinessProfileDto(
     @SerialName("brand_color") val brand_color: String? = null,
     @SerialName("logo_path") val logo_path: String? = null,
     @SerialName("created_at") val created_at: String? = null,
-    @SerialName("updated_at") val updated_at: String? = null
+    @SerialName("updated_at") val updated_at: String? = null,
 )
 
 private fun BusinessProfileDto.toDomain() = BusinessProfile(
@@ -28,7 +28,7 @@ private fun BusinessProfileDto.toDomain() = BusinessProfile(
     brand_color = brand_color,
     logo_path = logo_path,
     created_at = created_at,
-    updated_at = updated_at
+    updated_at = updated_at,
 )
 
 private fun BusinessProfile.toDto(ownerId: String) = BusinessProfileDto(
@@ -41,7 +41,7 @@ private fun BusinessProfile.toDto(ownerId: String) = BusinessProfileDto(
     brand_color = brand_color,
     logo_path = logo_path,
     created_at = created_at,
-    updated_at = updated_at
+    updated_at = updated_at,
 )
 
 class BusinessProfileRemote(private val client: SupabaseClient, private val ownerIdProvider: suspend () -> String?) {
@@ -53,8 +53,8 @@ class BusinessProfileRemote(private val client: SupabaseClient, private val owne
             params = mapOf(
                 "owner_id" to "eq.$ownerId",
                 "select" to "*",
-                "limit" to "1"
-            )
+                "limit" to "1",
+            ),
         )
         return list.firstOrNull()?.toDomain()
     }
@@ -67,8 +67,8 @@ class BusinessProfileRemote(private val client: SupabaseClient, private val owne
             path = "rest/v1/business_profiles",
             body = listOf(dto),
             params = mapOf(
-                "select" to "*"
-            )
+                "select" to "*",
+            ),
         )
         return result.firstOrNull()?.toDomain()
     }

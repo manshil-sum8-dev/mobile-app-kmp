@@ -1,56 +1,70 @@
 package za.co.quantive.app.data.remote.api
 
-import za.co.quantive.app.domain.entities.*
+import za.co.quantive.app.domain.contact.ContactType
+import za.co.quantive.app.domain.contact.CreateContactRequest
+import za.co.quantive.app.domain.contact.PatchContactRequest
+import za.co.quantive.app.domain.contact.UpdateContactRequest
+import za.co.quantive.app.domain.entities.BusinessContact
+import za.co.quantive.app.domain.entities.ContactFilter
 
 /**
- * Contact API interface for backend communication
+ * REST-first Contact API interface for backend communication
+ * CRUD operations use standard HTTP methods/endpoints
  */
 interface ContactApi {
+
+    // === STANDARD REST CRUD OPERATIONS ===
+
+    /**
+     * GET /contacts - Get paginated list of contacts
+     */
     suspend fun getContacts(
         page: Int = 0,
         limit: Int = 50,
-        filter: ContactFilter? = null
+        filter: ContactFilter? = null,
     ): ApiResponse<PaginatedResponse<BusinessContact>>
 
+    /**
+     * GET /contacts/{id} - Get single contact by ID
+     */
     suspend fun getContact(id: String): ApiResponse<BusinessContact>
-    
+
+    /**
+     * POST /contacts - Create new contact
+     */
     suspend fun createContact(request: CreateContactRequest): ApiResponse<BusinessContact>
-    
+
+    /**
+     * PUT /contacts/{id} - Update existing contact (full update)
+     */
     suspend fun updateContact(id: String, request: UpdateContactRequest): ApiResponse<BusinessContact>
-    
+
+    /**
+     * PATCH /contacts/{id} - Partial contact update
+     */
+    suspend fun patchContact(id: String, request: PatchContactRequest): ApiResponse<BusinessContact>
+
+    /**
+     * DELETE /contacts/{id} - Soft delete contact
+     */
     suspend fun deleteContact(id: String): ApiResponse<Unit>
-    
-    suspend fun getContactSummary(dateRange: DateRange? = null): ApiResponse<ContactSummary>
+
+    // === CONTACT SUB-RESOURCES ===
+
+    /**
+     * GET /contacts/search - Search contacts with query
+     */
+    suspend fun searchContacts(
+        query: String,
+        type: ContactType? = null,
+        limit: Int = 20,
+    ): ApiResponse<List<BusinessContact>>
+
+    /**
+     * GET /contacts/recent - Get recently accessed contacts
+     */
+    suspend fun getRecentContacts(
+        type: ContactType? = null,
+        limit: Int = 10,
+    ): ApiResponse<List<BusinessContact>>
 }
-
-// Request models
-@kotlinx.serialization.Serializable
-data class CreateContactRequest(
-    val businessId: String,
-    val type: ContactType,
-    val name: String,
-    val displayName: String? = null,
-    val email: String? = null,
-    val phone: String? = null,
-    val website: String? = null,
-    val address: BusinessAddress? = null,
-    val taxDetails: TaxDetails? = null,
-    val bankingDetails: BankingDetails? = null,
-    val notes: String? = null,
-    val tags: List<String> = emptyList()
-)
-
-@kotlinx.serialization.Serializable
-data class UpdateContactRequest(
-    val name: String? = null,
-    val displayName: String? = null,
-    val email: String? = null,
-    val phone: String? = null,
-    val website: String? = null,
-    val address: BusinessAddress? = null,
-    val taxDetails: TaxDetails? = null,
-    val bankingDetails: BankingDetails? = null,
-    val notes: String? = null,
-    val tags: List<String>? = null,
-    val isActive: Boolean? = null
-)

@@ -1,0 +1,66 @@
+package za.co.quantive.app.testing
+
+import org.junit.platform.suite.api.IncludeClassNamePatterns
+import org.junit.platform.suite.api.SelectPackages
+import org.junit.platform.suite.api.Suite
+import org.junit.platform.suite.api.SuiteDisplayName
+
+/**
+ * Master test suite for Quantive KMP project
+ * Organizes and executes all test categories systematically
+ */
+@Suite
+@SuiteDisplayName("Quantive KMP Test Suite")
+@SelectPackages(
+    "za.co.quantive.app.auth",
+    "za.co.quantive.app.core",
+    "za.co.quantive.app.data",
+    "za.co.quantive.app.integration"
+)
+@IncludeClassNamePatterns(".*Test")
+class QuantiveTestSuite
+
+/**
+ * Unit tests suite - fast, isolated tests
+ */
+@Suite
+@SuiteDisplayName("Unit Tests")
+@SelectPackages(
+    "za.co.quantive.app.auth",
+    "za.co.quantive.app.core.cache", 
+    "za.co.quantive.app.data.remote.api",
+    "za.co.quantive.app.data.remote.repository"
+)
+@IncludeClassNamePatterns(".*Test")
+class UnitTestSuite
+
+/**
+ * Integration tests suite - cross-component tests
+ */
+@Suite
+@SuiteDisplayName("Integration Tests")
+@SelectPackages("za.co.quantive.app.integration")
+@IncludeClassNamePatterns(".*IntegrationTest")
+class IntegrationTestSuite
+
+/**
+ * Performance and load tests suite
+ */
+@Suite
+@SuiteDisplayName("Performance Tests")
+@SelectPackages("za.co.quantive.app")
+@IncludeClassNamePatterns(".*PerformanceTest")
+class PerformanceTestSuite
+
+/**
+ * Critical path tests - most important business logic
+ * Run first in CI/CD for fast feedback
+ */
+@Suite
+@SuiteDisplayName("Critical Path Tests")
+@SelectPackages(
+    "za.co.quantive.app.auth",
+    "za.co.quantive.app.core.cache"
+)
+@IncludeClassNamePatterns(".*Test")
+class CriticalPathTestSuite
